@@ -45,17 +45,18 @@ impl Chunk {
         self.values[z][y][x] = v
     }
 
+    #[inline]
     pub fn voxel_corner_indices(&self, x: usize, y: usize, z: usize) -> [[usize; 3]; 8] {
-        // TODO: could be consolidated/more idiomatic
-        let c0 = [x, y, z];
-        let c1 = [x + 1, y, z];
-        let c2 = [x + 1, y + 1, z];
-        let c3 = [x, y + 1, z];
-        let c4 = [x, y, z + 1];
-        let c5 = [x + 1, y, z + 1];
-        let c6 = [x + 1, y + 1, z + 1];
-        let c7 = [x, y + 1, z + 1];
-        return [c0, c1, c2, c3, c4, c5, c6, c7];
+        [
+            [x, y, z],
+            [x + 1, y, z],
+            [x + 1, y + 1, z],
+            [x, y + 1, z],
+            [x, y, z + 1],
+            [x + 1, y, z + 1],
+            [x + 1, y + 1, z + 1],
+            [x, y + 1, z + 1],
+        ]
     }
 
     pub fn fill(&mut self, function: &CompiledFunction) {
