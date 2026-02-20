@@ -1,52 +1,46 @@
-use bevy::{
-    pbr::wireframe::{Wireframe, WireframeConfig},
-    prelude::*,
-};
+use std::f32::consts::PI;
+
+use bevy::{pbr::wireframe::Wireframe, prelude::*};
 use bevy_marching_cubes::{MarchingCubesPlugin, chunk::Chunk, types::Point};
 
 fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
-            // #[cfg(not(target_arch = "wasm32"))]
-            bevy::pbr::wireframe::WireframePlugin::default(),
             MarchingCubesPlugin::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            bevy::pbr::wireframe::WireframePlugin::default(),
         ))
-        .insert_resource(WireframeConfig {
-            global: true,
-            ..Default::default()
-        })
         .add_systems(Startup, setup)
         .run();
 }
 
-fn setup(mut commands: Commands) {
-    const RESOLUTION: u32 = 16;
-
+fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>) {
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(
-            RESOLUTION as f32 * -1.2,
-            RESOLUTION as f32 * 1.4,
-            RESOLUTION as f32 * -1.2,
-        )
-        .looking_at(Vec3::Y * RESOLUTION as f32 * 0.8, Vec3::Y),
+        Transform::from_xyz(-10., 12., -10.).looking_at(Vec3::Y * 6., Vec3::Y),
+    ));
+
+    commands.spawn((
+        DirectionalLight {
+            illuminance: light_consts::lux::FULL_DAYLIGHT,
+            ..Default::default()
+        },
+        Transform::default().with_rotation(Quat::from_rotation_x(-PI / 4.)),
     ));
 
     let function = |_p: Point| {
-        let distance = (_p.x - (RESOLUTION / 2) as f64)
-            .hypot(_p.y - (RESOLUTION / 2) as f64)
-            .hypot(_p.z - (RESOLUTION / 2) as f64);
-        distance - (RESOLUTION / 4) as f64
+        let distance = (_p.x - 4.).hypot(_p.y - 4.).hypot(_p.z - 4.);
+        distance - 2.
     };
 
     commands.spawn((
-        Chunk::new(
-            RESOLUTION as usize,
-            RESOLUTION as usize,
-            RESOLUTION as usize,
-        )
-        .fill(&function),
+        Chunk::new(8, 8, 8).fill(&function),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: Color::srgb(1., 0., 0.),
+            perceptual_roughness: 1.,
+            ..Default::default()
+        })),
         Wireframe,
     ));
 }

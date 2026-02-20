@@ -9,7 +9,7 @@ use crate::{
     chunk::Chunk,
     mesh::MarchMesh,
     tables::{CORNER_POINT_INDICES, EDGE_TABLE},
-    types::Point,
+    types::{Point, Value},
     utils::{
         get_corner_positions, get_edge_endpoints, get_edge_midpoints, get_state,
         triangle_verts_from_state,
@@ -50,14 +50,18 @@ fn on_chunk_add(
 
 fn process_chunk(
     mut commands: Commands,
-    query: Query<(Entity, &Chunk), With<QueuedChunk>>,
+    query: Query<(Entity, &Chunk, &Transform), With<QueuedChunk>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let edge_table = &EDGE_TABLE.map(|e| format!("{:b}", e));
 
-    for (entity, chunk) in query.iter() {
+    for (entity, chunk, transform) in query.iter() {
         let mut mesh = MarchMesh::new_empty();
+        let min_pos = Point::new(
+            transform.translation.x,
+            transform.translation.y,
+            transform.translation.z,
+        );
         let vertices: Vec<Point> = (0..chunk.size_x - 1)
             .into_par_iter()
             .map(|x| {
@@ -67,11 +71,11 @@ fn process_chunk(
                             .map(|z| {
                                 // corner positions
                                 let corner_positions =
-                                    get_corner_positions(chunk.min_point, x, y, z, chunk.scale);
+                                    get_corner_positions(min_pos, x, y, z, chunk.scale);
 
                                 // voxel values (read from chunk)
                                 let corner_indices = chunk.voxel_corner_indices(x, y, z);
-                                let eval_corners: Vec<f64> = corner_indices
+                                let eval_corners: Vec<Value> = corner_indices
                                     .iter()
                                     .map(|[cx, cy, cz]| chunk.get(*cx, *cy, *cz))
                                     .collect();
@@ -138,10 +142,6 @@ fn process_chunk(
         commands
             .entity(entity)
             .insert(Mesh3d(meshes.add(bevy_mesh)))
-            .insert(MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::WHITE,
-                ..Default::default()
-            })))
             .remove::<QueuedChunk>();
         bevy::log::info!("Processed chunk {}", entity);
     }

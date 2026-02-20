@@ -5,11 +5,11 @@ use crate::{
     error::{MarchingCubesError, Result},
     interp::{find_t, interpolate_points, remap},
     tables::TRI_TABLE,
-    types::{Point, Vector},
+    types::{Point, Value, Vector},
 };
 
 pub fn triangle_verts_from_state(
-    edge_points: HashMap<usize, Vec<f64>>,
+    edge_points: HashMap<usize, Vec<Value>>,
     state: usize,
 ) -> Vec<Point> {
     // triangles (TRI_TABLE[state])
@@ -37,11 +37,11 @@ pub fn get_corner_positions(
     x: usize,
     y: usize,
     z: usize,
-    scale: f64,
+    scale: Value,
 ) -> Vec<Point> {
-    let xf = scale * x as f64;
-    let yf = scale * y as f64;
-    let zf = scale * z as f64;
+    let xf = scale * x as Value;
+    let yf = scale * y as Value;
+    let zf = scale * z as Value;
 
     // could be consolidated/more idiomatic
     let p0 = point![xf, yf, zf];
@@ -84,7 +84,7 @@ pub fn center_box(center: Point, dims: Vector) -> [Point; 2] {
 }
 
 // get the state of the 8 vertices of the cube
-pub fn get_state(eval_corners: &Vec<f64>, threshold: f64) -> Result<usize> {
+pub fn get_state(eval_corners: &Vec<Value>, threshold: Value) -> Result<usize> {
     // Make sure eval_corners contains exactly 8 values
     if eval_corners.len() != 8 {
         return Err(MarchingCubesError::InvalidCorners);
@@ -104,7 +104,7 @@ pub fn get_state(eval_corners: &Vec<f64>, threshold: f64) -> Result<usize> {
 }
 
 // Function to determine state of each corner
-pub fn state_function(v: f64, threshold: f64) -> f64 {
+pub fn state_function(v: Value, threshold: Value) -> Value {
     if v <= threshold { 1.0 } else { 0.0 }
 }
 
@@ -113,14 +113,14 @@ pub fn get_edge_midpoints(
     endpoint_indices: Vec<[i8; 2]>,
     edges_to_use: Vec<usize>,
     corner_positions: Vec<Point>,
-    corner_values: Vec<f64>,
-    threshold: f64,
-) -> HashMap<usize, Vec<f64>> {
+    corner_values: Vec<Value>,
+    threshold: Value,
+) -> HashMap<usize, Vec<Value>> {
     let (mut pair, mut edge);
     let (mut pi, mut pf, mut pe);
     let (mut vi, mut vf, mut t);
 
-    let mut edge_points: HashMap<usize, Vec<f64>> = HashMap::new();
+    let mut edge_points: HashMap<usize, Vec<Value>> = HashMap::new();
 
     for i in 0..endpoint_indices.len() {
         pair = endpoint_indices[i];
@@ -189,7 +189,7 @@ pub fn smooth_min(a: f64, b: f64, mut k: f64) -> f64 {
     a.min(b) - h * h * k * (1.0 / 4.0)
 }
 
-pub fn ramp(v: f64, in_min: f64, in_max: f64, out_min: f64, out_max: f64) -> f64 {
+pub fn ramp(v: Value, in_min: Value, in_max: Value, out_min: Value, out_max: Value) -> Value {
     if v < in_min {
         return out_min;
     } else if v > in_max {
