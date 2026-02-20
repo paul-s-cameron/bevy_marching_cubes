@@ -3,6 +3,7 @@ name = "bevy_marching_cubes"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+description = "A small Bevy plugin that generates meshes from signed-distance-field (SDF) using the Marching Cubes algorithm"
 
 [features]
 default = ["auto_queue"]
