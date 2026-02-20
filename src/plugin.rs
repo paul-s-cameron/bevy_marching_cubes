@@ -11,8 +11,7 @@ use crate::{
     tables::{CORNER_POINT_INDICES, EDGE_TABLE},
     types::{Point, Value},
     utils::{
-        get_corner_positions, get_edge_endpoints, get_edge_midpoints, get_state,
-        triangle_verts_from_state,
+        get_corner_positions, get_edge_midpoints, get_state, triangle_verts_from_state,
     },
 };
 
@@ -65,6 +64,11 @@ fn process_chunk(
             .into_par_iter()
             .map(|x| {
                 let mut local: Vec<Point> = Vec::new();
+                let y_cells = (chunk.size_y - 1) as usize;
+                let z_cells = (chunk.size_z - 1) as usize;
+                let per_voxel_max = 15_usize; // upper bound of vertices per voxel
+                local.reserve(y_cells * z_cells * per_voxel_max);
+
                 for y in 0..chunk.size_y - 1 {
                     for z in 0..chunk.size_z - 1 {
                         // corner positions
@@ -83,16 +87,12 @@ fn process_chunk(
                         // edges mask (bitfield of intersected edges)
                         let edges_mask = EDGE_TABLE[state] as u16;
 
-                        // Indices of edge endpoints (List of pairs)
-                        let (endpoint_indices, edges_to_use) =
-                            get_edge_endpoints(edges_mask, &CORNER_POINT_INDICES);
-
-                        // finding midpoints of edges
+                        // find midpoints of intersected edges
                         let edge_points = get_edge_midpoints(
-                            endpoint_indices,
-                            edges_to_use,
-                            corner_positions,
-                            eval_corners,
+                            edges_mask,
+                            &CORNER_POINT_INDICES,
+                            &corner_positions,
+                            &eval_corners,
                             0.,
                         );
 

@@ -33,7 +33,7 @@ pub fn get_corner_positions(
     y: usize,
     z: usize,
     scale: Value,
-) -> Vec<Point> {
+)-> [Point; 8] {
     let xf = scale * x as Value;
     let yf = scale * y as Value;
     let zf = scale * z as Value;
@@ -48,13 +48,12 @@ pub fn get_corner_positions(
     let p6 = point![xf + scale, yf + scale, zf + scale];
     let p7 = point![xf, yf + scale, zf + scale];
 
-    let mut corner_points = vec![p0, p1, p2, p3, p4, p5, p6, p7];
+    let mut corner_points = [p0, p1, p2, p3, p4, p5, p6, p7];
 
-    // Translating points to bounding box space
-    corner_points = corner_points
-        .iter()
-        .map(|p| add_points(*p, min_point))
-        .collect();
+    // Translating points to bounding box space (in-place)
+    for p in &mut corner_points {
+        *p = add_points(*p, min_point);
+    }
 
     corner_points
 }
@@ -85,10 +84,10 @@ pub fn get_state(eval_corners: &Vec<Value>, threshold: Value) -> Result<usize> {
         return Err(MarchingCubesError::InvalidCorners);
     }
 
-    // Build an integer bitmask state: set bit i when corner i satisfies the `state_function`
+    // Build an integer bitmask state
     let mut state: usize = 0;
     for (i, &v) in eval_corners.iter().enumerate() {
-        if state_function(v, threshold) {
+        if v <= threshold {
             state |= 1 << i;
         }
     }
@@ -96,70 +95,33 @@ pub fn get_state(eval_corners: &Vec<Value>, threshold: Value) -> Result<usize> {
     Ok(state)
 }
 
-// Function to determine state of each corner
-pub fn state_function(v: Value, threshold: Value) -> bool {
-    // Preserve original behavior: true when value <= threshold
-    v <= threshold
-}
+
 
 // Get the midpoints of the edges of the cube
 pub fn get_edge_midpoints(
-    endpoint_indices: Vec<[i8; 2]>,
-    edges_to_use: Vec<usize>,
-    corner_positions: Vec<Point>,
-    corner_values: Vec<Value>,
-    threshold: Value,
-) -> [Option<[Value; 3]>; 12] {
-    let (mut pair, mut edge);
-    let (mut pi, mut pf);
-    let (mut vi, mut vf, mut t);
-
-    let mut edge_points: [Option<[Value; 3]>; 12] = [None; 12];
-
-    for i in 0..endpoint_indices.len() {
-        pair = endpoint_indices[i];
-        edge = edges_to_use[i];
-        if pair.len() > 0 {
-            // finding points corresponding to endpoint indices
-            vi = corner_values[pair[0] as usize];
-            vf = corner_values[pair[1] as usize];
-            pi = corner_positions[pair[0] as usize];
-            pf = corner_positions[pair[1] as usize];
-
-            t = find_t(vi, vf, threshold);
-
-            let pe = interpolate_points(pi, pf, t); // midpoint/interpolated point (Vec<Value>)
-            edge_points[edge] = Some([pe[0], pe[1], pe[2]]);
-        }
-    }
-    edge_points
-}
-
-/// Return pairs of endpoints per edge of the cube
-pub fn get_edge_endpoints(
     edges_mask: u16,
     point_indices: &[[i8; 2]; 12],
-) -> (Vec<[i8; 2]>, Vec<usize>) {
-    // returns the endpoints of edges from bitmask
-    let mut edge_points = Vec::new();
+    corner_positions: &[Point; 8],
+    corner_values: &[Value],
+    threshold: Value,
+) -> [Option<[Value; 3]>; 12] {
+    let mut edge_points: [Option<[Value; 3]>; 12] = [None; 12];
 
-    // get list of edge indices from bitmask
-    let edges_to_use = edges_from_lookup(edges_mask);
-    for e in &edges_to_use {
-        edge_points.push(point_indices[*e]);
-    }
-
-    (edge_points, edges_to_use)
-}
-
-/// Return the edges that contain triangle vertices
-pub fn edges_from_lookup(edges_mask: u16) -> Vec<usize> {
-    // Interpret the lower 12 bits of `edges_mask` as edge flags.
-    let mut edges_to_use = Vec::new();
-    for i in 0..12_usize {
-        if (edges_mask & (1 << i)) != 0 {
-            edges_to_use.push(i);
+    for i in 0..12usize {
+        if (edges_mask & (1 << i)) == 0 {
+            continue;
         }
+
+        let pair = point_indices[i];
+        let vi = corner_values[pair[0] as usize];
+        let vf = corner_values[pair[1] as usize];
+        let pi = corner_positions[pair[0] as usize];
+        let pf = corner_positions[pair[1] as usize];
+
+        let t = find_t(vi, vf, threshold);
+        let pe = interpolate_points(pi, pf, t); // Vec<Value>
+        edge_points[i] = Some([pe[0], pe[1], pe[2]]);
     }
-    edges_to_use
+
+    edge_points
 }
