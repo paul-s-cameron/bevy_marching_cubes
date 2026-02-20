@@ -60,58 +60,59 @@ fn process_chunk(
             transform.translation.y,
             transform.translation.z,
         );
-        let vertices: Vec<Point> = (0..chunk.size_x - 1)
+
+        let per_x: Vec<Vec<Point>> = (0..chunk.size_x - 1)
             .into_par_iter()
             .map(|x| {
-                (0..chunk.size_y - 1)
-                    .map(|y| {
-                        (0..chunk.size_z - 1)
-                            .map(|z| {
-                                // corner positions
-                                let corner_positions =
-                                    get_corner_positions(min_pos, x, y, z, chunk.scale);
+                let mut local: Vec<Point> = Vec::new();
+                for y in 0..chunk.size_y - 1 {
+                    for z in 0..chunk.size_z - 1 {
+                        // corner positions
+                        let corner_positions = get_corner_positions(min_pos, x, y, z, chunk.scale);
 
-                                // voxel values (read from chunk)
-                                let corner_indices = chunk.voxel_corner_indices(x, y, z);
-                                let eval_corners: Vec<Value> = corner_indices
-                                    .iter()
-                                    .map(|[cx, cy, cz]| chunk.get(*cx, *cy, *cz))
-                                    .collect();
+                        // voxel values (read from chunk)
+                        let corner_indices = chunk.voxel_corner_indices(x, y, z);
+                        let eval_corners: Vec<Value> = corner_indices
+                            .iter()
+                            .map(|[cx, cy, cz]| chunk.get(*cx, *cy, *cz))
+                            .collect();
 
-                                // Calculating state
-                                let state =
-                                    get_state(&eval_corners, 0.).expect("Could not get state");
+                        // Calculating state
+                        let state = get_state(&eval_corners, 0.).expect("Could not get state");
 
-                                // edges mask (bitfield of intersected edges)
-                                let edges_mask = EDGE_TABLE[state] as u16;
+                        // edges mask (bitfield of intersected edges)
+                        let edges_mask = EDGE_TABLE[state] as u16;
 
-                                // Indices of edge endpoints (List of pairs)
-                                let (endpoint_indices, edges_to_use) =
-                                    get_edge_endpoints(edges_mask, &CORNER_POINT_INDICES);
+                        // Indices of edge endpoints (List of pairs)
+                        let (endpoint_indices, edges_to_use) =
+                            get_edge_endpoints(edges_mask, &CORNER_POINT_INDICES);
 
-                                // finding midpoints of edges
-                                let edge_points = get_edge_midpoints(
-                                    endpoint_indices,
-                                    edges_to_use,
-                                    corner_positions,
-                                    eval_corners,
-                                    0.,
-                                );
+                        // finding midpoints of edges
+                        let edge_points = get_edge_midpoints(
+                            endpoint_indices,
+                            edges_to_use,
+                            corner_positions,
+                            eval_corners,
+                            0.,
+                        );
 
-                                // adding triangle verts
-                                let new_verts = triangle_verts_from_state(edge_points, state);
-                                new_verts
-                            })
-                            .flatten()
-                            .collect::<Vec<Point>>()
-                    })
-                    .flatten()
-                    .collect::<Vec<Point>>()
+                        // adding triangle verts
+                        let new_verts = triangle_verts_from_state(edge_points, state);
+                        local.extend(new_verts);
+                    }
+                }
+                local
             })
-            .flatten()
-            .collect::<Vec<Point>>();
+            .collect();
 
-        mesh.set_vertices(vertices.clone());
+        // Concatenate per-x results into single vertex buffer without cloning
+        let total: usize = per_x.iter().map(|v| v.len()).sum();
+        let mut vertices: Vec<Point> = Vec::with_capacity(total);
+        for mut v in per_x {
+            vertices.append(&mut v);
+        }
+
+        mesh.set_vertices(vertices);
         mesh.create_triangles();
         mesh.create_normals();
 
@@ -121,7 +122,8 @@ fn process_chunk(
         );
 
         // Convert vertices from Point3<f64> to Vec<[f32; 3]>
-        let positions: Vec<[f32; 3]> = vertices
+        let positions: Vec<[f32; 3]> = mesh
+            .vertices
             .iter()
             .map(|p| [p.x as f32, p.y as f32, p.z as f32])
             .collect();
