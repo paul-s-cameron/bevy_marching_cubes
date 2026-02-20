@@ -4,7 +4,6 @@ use nalgebra::point;
 use crate::{
     mesh::MarchMesh,
     types::{CompiledFunction, Point, Value},
-    utils::add_points,
 };
 
 #[derive(Component)]
@@ -63,10 +62,14 @@ impl Chunk {
         (0..self.size_x).for_each(|x| {
             (0..self.size_y).for_each(|y| {
                 (0..self.size_z).for_each(|z| {
-                    let p = add_points(
-                        point![x as Value, y as Value, z as Value] * self.scale,
-                        self.min_point,
-                    );
+                    let xf = x as Value * self.scale;
+                    let yf = y as Value * self.scale;
+                    let zf = z as Value * self.scale;
+                    let p = point![
+                        xf + self.min_point.x,
+                        yf + self.min_point.y,
+                        zf + self.min_point.z
+                    ];
                     self.set(x as usize, y as usize, z as usize, function(p))
                 })
             })
