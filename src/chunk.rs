@@ -2,11 +2,12 @@ use bevy::prelude::*;
 use nalgebra::point;
 
 use crate::{
+    mesh::MarchMesh,
     types::{CompiledFunction, Point, Value},
     utils::add_points,
 };
 
-#[derive(Component, Debug)]
+#[derive(Component)]
 #[require(Transform)]
 pub struct Chunk {
     pub size_x: usize,
@@ -16,6 +17,7 @@ pub struct Chunk {
     pub scale: Value,
     pub values: Vec<Vec<Vec<Value>>>,
     pub grid_points: Vec<Vec<Vec<Point>>>,
+    pub mesh: Option<MarchMesh>,
 }
 
 impl Chunk {
@@ -32,6 +34,7 @@ impl Chunk {
             scale,
             values,
             grid_points,
+            mesh: None,
         }
     }
 

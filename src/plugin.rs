@@ -50,12 +50,12 @@ fn on_chunk_add(
 
 fn process_chunk(
     mut commands: Commands,
-    query: Query<(Entity, &Chunk, &Transform), With<QueuedChunk>>,
+    mut query: Query<(Entity, &mut Chunk, &Transform), With<QueuedChunk>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     let edge_table = &EDGE_TABLE.map(|e| format!("{:b}", e));
 
-    for (entity, chunk, transform) in query.iter() {
+    for (entity, mut chunk, transform) in query.iter_mut() {
         let mut mesh = MarchMesh::new_empty();
         let min_pos = Point::new(
             transform.translation.x,
@@ -135,6 +135,8 @@ fn process_chunk(
             .iter()
             .flat_map(|tri| vec![tri[0] as u32, tri[1] as u32, tri[2] as u32])
             .collect();
+
+        chunk.mesh = Some(mesh);
 
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
         bevy_mesh.insert_indices(Indices::U32(indices));
