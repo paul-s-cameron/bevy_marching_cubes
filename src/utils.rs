@@ -1,4 +1,3 @@
-use bevy::platform::collections::HashMap;
 use nalgebra::{Point3, point};
 
 use crate::{
@@ -9,7 +8,7 @@ use crate::{
 };
 
 pub fn triangle_verts_from_state(
-    edge_points: HashMap<usize, Vec<Value>>,
+    edge_points: [Option<[Value; 3]>; 12],
     state: usize,
 ) -> Vec<Point> {
     // triangles (TRI_TABLE[state])
@@ -19,13 +18,9 @@ pub fn triangle_verts_from_state(
         .iter()
         .filter(|v| v != &&-1)
         .map(|t| {
-            let new_vert = Point3::new(
-                //converting Vec to array
-                edge_points[&(*t as usize)][2],
-                edge_points[&(*t as usize)][1],
-                edge_points[&(*t as usize)][0],
-            );
-            new_vert
+            let idx = *t as usize;
+            let arr = edge_points[idx].expect("edge midpoint missing for triangle vertex");
+            Point3::new(arr[2], arr[1], arr[0])
         })
         .collect::<Vec<Point>>();
     new_verts
@@ -114,12 +109,12 @@ pub fn get_edge_midpoints(
     corner_positions: Vec<Point>,
     corner_values: Vec<Value>,
     threshold: Value,
-) -> HashMap<usize, Vec<Value>> {
+) -> [Option<[Value; 3]>; 12] {
     let (mut pair, mut edge);
-    let (mut pi, mut pf, mut pe);
+    let (mut pi, mut pf);
     let (mut vi, mut vf, mut t);
 
-    let mut edge_points: HashMap<usize, Vec<Value>> = HashMap::new();
+    let mut edge_points: [Option<[Value; 3]>; 12] = [None; 12];
 
     for i in 0..endpoint_indices.len() {
         pair = endpoint_indices[i];
@@ -133,8 +128,8 @@ pub fn get_edge_midpoints(
 
             t = find_t(vi, vf, threshold);
 
-            pe = interpolate_points(pi, pf, t); // midpoint/interpolated point
-            edge_points.insert(edge, pe);
+            let pe = interpolate_points(pi, pf, t); // midpoint/interpolated point (Vec<Value>)
+            edge_points[edge] = Some([pe[0], pe[1], pe[2]]);
         }
     }
     edge_points
