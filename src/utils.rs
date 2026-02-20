@@ -3,7 +3,7 @@ use nalgebra::{Point3, point};
 
 use crate::{
     error::{MarchingCubesError, Result},
-    interp::{find_t, interpolate_points, remap},
+    interp::{find_t, interpolate_points},
     tables::TRI_TABLE,
     types::{Point, Value, Vector},
 };
@@ -90,22 +90,21 @@ pub fn get_state(eval_corners: &Vec<Value>, threshold: Value) -> Result<usize> {
         return Err(MarchingCubesError::InvalidCorners);
     }
 
-    // 0 if <= threshold, 1 if > threshold
-    let states = eval_corners.iter().map(|x| state_function(*x, threshold));
-
-    let mut i = 1.0;
-    let mut final_state = 0.0;
-    for s in states {
-        final_state += s * i;
-        i *= 2.0;
+    // Build an integer bitmask state: set bit i when corner i satisfies the `state_function`
+    let mut state: usize = 0;
+    for (i, &v) in eval_corners.iter().enumerate() {
+        if state_function(v, threshold) {
+            state |= 1 << i;
+        }
     }
 
-    return Ok(final_state as usize);
+    Ok(state)
 }
 
 // Function to determine state of each corner
-pub fn state_function(v: Value, threshold: Value) -> Value {
-    if v <= threshold { 1.0 } else { 0.0 }
+pub fn state_function(v: Value, threshold: Value) -> bool {
+    // Preserve original behavior: true when value <= threshold
+    v <= threshold
 }
 
 // Get the midpoints of the edges of the cube
