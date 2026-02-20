@@ -1,6 +1,6 @@
 use crate::{
     error::{MarchingCubesError, Result},
-    types::{Point, Vector},
+    types::{Point, Value, Vector},
 };
 
 #[derive(Clone)]
@@ -9,7 +9,10 @@ pub struct MarchMesh {
     pub vertices: Vec<Point>,
 
     // [[v0, v1, v2], [v3, v4, v5], ...]
-    pub tris: Vec<[usize; 3]>, // new triangles
+    pub tris: Vec<[usize; 3]>,
+
+    // per-vertex normals
+    pub normals: Vec<[Value; 3]>,
 }
 
 impl MarchMesh {
@@ -18,6 +21,7 @@ impl MarchMesh {
         Self {
             vertices: Vec::new(),
             tris: Vec::new(),
+            normals: Vec::new(),
         }
     }
 
@@ -60,7 +64,12 @@ impl MarchMesh {
 
         let cross = v_a_b.cross(&v_b_c);
 
-        cross / cross.norm() //normal vector
+        let nrm = cross.norm();
+        if nrm == 0.0 {
+            Vector::new(0.0, 0.0, 0.0)
+        } else {
+            cross / nrm //normal vector
+        }
     }
 
     pub fn create_triangles(&mut self) -> () {
@@ -69,6 +78,19 @@ impl MarchMesh {
             self.triangle_from_verts(v, v + 1, v + 2)
                 .expect("Could not create triangle.");
             v += 3
+        }
+    }
+
+    pub fn create_normals(&mut self) -> () {
+        self.normals.clear();
+        for tri in 0..self.tris.len() {
+            let normal = self.tri_normal(tri);
+            let n = [normal.x, normal.y, normal.z];
+            // push the face normal once per vertex of the triangle
+            // TODO: Experiment with option for interpolated normals
+            self.normals.push(n);
+            self.normals.push(n);
+            self.normals.push(n);
         }
     }
 

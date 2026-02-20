@@ -26,7 +26,7 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
             illuminance: light_consts::lux::FULL_DAYLIGHT,
             ..Default::default()
         },
-        Transform::default().with_rotation(Quat::from_rotation_x(-PI / 4.)),
+        Transform::default().with_rotation(Quat::from_rotation_x(PI)),
     ));
 
     let function = |_p: Point| {
@@ -38,7 +38,6 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
         Chunk::new(8, 8, 8).fill(&function),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(1., 0., 0.),
-            perceptual_roughness: 1.,
             ..Default::default()
         })),
         Wireframe,

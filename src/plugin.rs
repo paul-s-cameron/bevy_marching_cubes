@@ -117,6 +117,7 @@ fn process_chunk(
 
         mesh.set_vertices(vertices.clone());
         mesh.create_triangles();
+        mesh.create_normals();
 
         let mut bevy_mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
@@ -136,9 +137,17 @@ fn process_chunk(
             .flat_map(|tri| vec![tri[0] as u32, tri[1] as u32, tri[2] as u32])
             .collect();
 
+        // Convert normals from Vec<[f64; 3]> to Vec<[f32; 3]>
+        let normals: Vec<[f32; 3]> = mesh
+            .normals
+            .iter()
+            .map(|n| [n[0] as f32, n[1] as f32, n[2] as f32])
+            .collect();
+
         chunk.mesh = Some(mesh);
 
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
         bevy_mesh.insert_indices(Indices::U32(indices));
 
         commands
