@@ -41,6 +41,12 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
 }
 ```
 
+## Bevy Version Support
+
+| bevy | bevy_marching_cubes |
+|------|---------------------|
+| 0.18 | 0.1                 |
+
 ## Running the examples
 
 From the crate root run the provided examples (the available example targets are in `examples/`):
