@@ -3,9 +3,9 @@ name = "bevy_marching_cubes"
 version = "0.1.0"
 edition = "2024"
 
-# [features]
-# default = ["auto_queue"]
-# auto_queue = []
+[features]
+default = ["auto_queue"]
+auto_queue = []
 
 [dependencies]
 bevy = "0.18"
