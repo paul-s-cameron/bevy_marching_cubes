@@ -53,8 +53,6 @@ fn process_chunk(
     mut query: Query<(Entity, &mut Chunk, &Transform), With<QueuedChunk>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let edge_table = &EDGE_TABLE.map(|e| format!("{:b}", e));
-
     for (entity, mut chunk, transform) in query.iter_mut() {
         let mut mesh = MarchMesh::new_empty();
         let min_pos = Point::new(
@@ -84,14 +82,12 @@ fn process_chunk(
                                 let state =
                                     get_state(&eval_corners, 0.).expect("Could not get state");
 
-                                // edges
-                                // Example: 11001100
-                                // Edges 2, 3, 6, 7 are intersected
-                                let edges_bin_string = &edge_table[state];
+                                // edges mask (bitfield of intersected edges)
+                                let edges_mask = EDGE_TABLE[state] as u16;
 
                                 // Indices of edge endpoints (List of pairs)
                                 let (endpoint_indices, edges_to_use) =
-                                    get_edge_endpoints(edges_bin_string, &CORNER_POINT_INDICES);
+                                    get_edge_endpoints(edges_mask, &CORNER_POINT_INDICES);
 
                                 // finding midpoints of edges
                                 let edge_points = get_edge_midpoints(

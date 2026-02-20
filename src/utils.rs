@@ -141,60 +141,31 @@ pub fn get_edge_midpoints(
     edge_points
 }
 
-// Return pairs of endpoints per edge of the cube
+/// Return pairs of endpoints per edge of the cube
 pub fn get_edge_endpoints(
-    edges: &String,
+    edges_mask: u16,
     point_indices: &[[i8; 2]; 12],
 ) -> (Vec<[i8; 2]>, Vec<usize>) {
-    // returns the endpoints of edges from EdgeTable lookup
+    // returns the endpoints of edges from bitmask
     let mut edge_points = Vec::new();
 
-    // prepare for the check to see if each character = 1
-    // TODO: (doesn't seem like the right way to do this)
-
-    // looping through binary string of yes/no for each edge
-    let edges_to_use = edges_from_lookup(edges);
-    for e in edges_to_use.clone() {
-        edge_points.push(point_indices[e]);
+    // get list of edge indices from bitmask
+    let edges_to_use = edges_from_lookup(edges_mask);
+    for e in &edges_to_use {
+        edge_points.push(point_indices[*e]);
     }
 
     (edge_points, edges_to_use)
 }
 
-// Return the edges that contain triangle vertices
-pub fn edges_from_lookup(edges: &String) -> Vec<usize> {
-    let use_edge = "1".chars().next().unwrap(); // edgeTable[8] = 100000001100 -> Edges 2, 3, 11 intersected
-    let mut i = (edges.len() - 1) as i32;
+/// Return the edges that contain triangle vertices
+pub fn edges_from_lookup(edges_mask: u16) -> Vec<usize> {
+    // Interpret the lower 12 bits of `edges_mask` as edge flags.
     let mut edges_to_use = Vec::new();
-
-    for char in edges.chars() {
-        if char == use_edge {
-            edges_to_use.push(i as usize)
+    for i in 0..12_usize {
+        if (edges_mask & (1 << i)) != 0 {
+            edges_to_use.push(i);
         }
-        i -= 1;
     }
-
     edges_to_use
-}
-
-pub fn smooth_min(a: f64, b: f64, mut k: f64) -> f64 {
-    // polynomial smooth min
-
-    if k < 0.00001 {
-        k = 0.00001
-    }
-
-    let h = (k - (a - b).abs()).max(0.0) / k;
-
-    a.min(b) - h * h * k * (1.0 / 4.0)
-}
-
-pub fn ramp(v: Value, in_min: Value, in_max: Value, out_min: Value, out_max: Value) -> Value {
-    if v < in_min {
-        return out_min;
-    } else if v > in_max {
-        return out_max;
-    } else {
-        return remap(v, [in_min, in_max], [out_min, out_max]);
-    }
 }
