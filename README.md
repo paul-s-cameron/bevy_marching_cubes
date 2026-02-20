@@ -1,6 +1,6 @@
 # bevy_marching_cubes
 
-A small Bevy plugin that generates meshes from signed-distance-field (SDF) using the Marching Cubes algorithm.
+A small Bevy plugin that generates meshes from signed-distance-field (SDF) using the Marching Cubes algorithm. ([source reference credit](https://github.com/TristanAntonsen/marching-cubes))
 
 This crate provides a `MarchingCubesPlugin` which can generate a `Mesh` from a `Chunk` component. It is intended as a personal lightweight utility for procedural surface generation and rendering in Bevy.
 
