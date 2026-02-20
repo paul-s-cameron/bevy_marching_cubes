@@ -52,7 +52,7 @@ impl Chunk {
         let c7 = [x, y + 1, z + 1];
         return [c0, c1, c2, c3, c4, c5, c6, c7];
     }
-    pub fn fill(&mut self, function: &CompiledFunction) {
+    pub fn fill(mut self, function: &CompiledFunction) -> Self {
         (0..self.size_x).for_each(|x| {
             (0..self.size_y).for_each(|y| {
                 (0..self.size_z).for_each(|z| {
@@ -64,5 +64,6 @@ impl Chunk {
                 })
             })
         });
+        self
     }
 }

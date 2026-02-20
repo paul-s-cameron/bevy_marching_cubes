@@ -28,10 +28,13 @@ pub struct MarchingCubesPlugin;
 
 impl Plugin for MarchingCubesPlugin {
     fn build(&self, app: &mut App) {
-        // #[cfg(feature = "auto_queue")]
-        // app.configure_sets(Update, MarchingCubesSet);
-        // #[cfg(feature = "auto_queue")]
-        app.add_systems(Update, (on_chunk_add, process_chunk).chain());
+        #[cfg(feature = "auto_queue")]
+        app.add_systems(
+            Update,
+            (on_chunk_add, process_chunk)
+                .chain()
+                .in_set(MarchingCubesSet),
+        );
     }
 }
 
@@ -41,7 +44,7 @@ fn on_chunk_add(
 ) {
     for entity in query.iter() {
         commands.entity(entity).insert(QueuedChunk);
-        bevy::log::info!("Added {} to queue", entity);
+        bevy::log::info!("Added Entity {} to chunk queue", entity);
     }
 }
 
@@ -55,21 +58,23 @@ fn process_chunk(
 
     for (entity, chunk) in query.iter() {
         let mut mesh = MarchMesh::new_empty();
-        let vertices: Vec<Point> = (0..chunk.size_x)
+        let vertices: Vec<Point> = (0..chunk.size_x - 1)
             .into_par_iter()
             .map(|x| {
-                (0..chunk.size_y)
+                (0..chunk.size_y - 1)
                     .map(|y| {
-                        (0..chunk.size_z)
+                        (0..chunk.size_z - 1)
                             .map(|z| {
                                 // corner positions
-                                // TODO: There's some redundancy/overlap that could be optimized
                                 let corner_positions =
                                     get_corner_positions(chunk.min_point, x, y, z, chunk.scale);
 
-                                // voxel values (evaluated sdf)
-                                let eval_corners =
-                                    corner_positions.iter().map(|p| p.x % 2.).collect();
+                                // voxel values (read from chunk)
+                                let corner_indices = chunk.voxel_corner_indices(x, y, z);
+                                let eval_corners: Vec<f64> = corner_indices
+                                    .iter()
+                                    .map(|[cx, cy, cz]| chunk.get(*cx, *cy, *cz))
+                                    .collect();
 
                                 // Calculating state
                                 let state =
