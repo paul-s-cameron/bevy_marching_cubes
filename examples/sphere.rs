@@ -34,8 +34,11 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
         distance - 2.
     };
 
+    let mut chunk = Chunk::new(8, 8, 8);
+    chunk.fill(&function);
+
     commands.spawn((
-        Chunk::new(8, 8, 8).fill(&function),
+        chunk,
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(1., 0., 0.),
             ..Default::default()

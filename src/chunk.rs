@@ -38,21 +38,6 @@ impl Chunk {
         }
     }
 
-    pub fn fill(mut self, function: &CompiledFunction) -> Self {
-        (0..self.size_x).for_each(|x| {
-            (0..self.size_y).for_each(|y| {
-                (0..self.size_z).for_each(|z| {
-                    let p = add_points(
-                        point![x as Value, y as Value, z as Value] * self.scale,
-                        self.min_point,
-                    );
-                    self.set(x as usize, y as usize, z as usize, function(p))
-                })
-            })
-        });
-        self
-    }
-
     pub fn get(&self, x: usize, y: usize, z: usize) -> Value {
         self.values[z][y][x]
     }
@@ -72,5 +57,19 @@ impl Chunk {
         let c6 = [x + 1, y + 1, z + 1];
         let c7 = [x, y + 1, z + 1];
         return [c0, c1, c2, c3, c4, c5, c6, c7];
+    }
+
+    pub fn fill(&mut self, function: &CompiledFunction) {
+        (0..self.size_x).for_each(|x| {
+            (0..self.size_y).for_each(|y| {
+                (0..self.size_z).for_each(|z| {
+                    let p = add_points(
+                        point![x as Value, y as Value, z as Value] * self.scale,
+                        self.min_point,
+                    );
+                    self.set(x as usize, y as usize, z as usize, function(p))
+                })
+            })
+        });
     }
 }
