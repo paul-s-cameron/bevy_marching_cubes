@@ -10,9 +10,7 @@ use crate::{
     mesh::MarchMesh,
     tables::{CORNER_POINT_INDICES, EDGE_TABLE},
     types::{Point, Value},
-    utils::{
-        get_corner_positions, get_edge_midpoints, get_state, triangle_verts_from_state,
-    },
+    utils::{get_corner_positions, get_edge_midpoints, get_state, triangle_verts_from_state},
 };
 
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
@@ -49,30 +47,22 @@ fn on_chunk_add(
 
 fn process_chunk(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut Chunk, &Transform), With<QueuedChunk>>,
+    mut query: Query<(Entity, &mut Chunk), With<QueuedChunk>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    for (entity, mut chunk, transform) in query.iter_mut() {
+    for (entity, mut chunk) in query.iter_mut() {
         let mut mesh = MarchMesh::new_empty();
-        let min_pos = Point::new(
-            transform.translation.x,
-            transform.translation.y,
-            transform.translation.z,
-        );
-
-        let per_x: Vec<Vec<Point>> = (0..chunk.size_x - 1)
+        let per_x: Vec<Vec<Point>> = (0..chunk.size_x)
             .into_par_iter()
             .map(|x| {
                 let mut local: Vec<Point> = Vec::new();
-                let y_cells = (chunk.size_y - 1) as usize;
-                let z_cells = (chunk.size_z - 1) as usize;
                 let per_voxel_max = 15_usize; // upper bound of vertices per voxel
-                local.reserve(y_cells * z_cells * per_voxel_max);
+                local.reserve(chunk.size_y * chunk.size_z * per_voxel_max);
 
-                for y in 0..chunk.size_y - 1 {
-                    for z in 0..chunk.size_z - 1 {
+                for y in 0..chunk.size_y {
+                    for z in 0..chunk.size_z {
                         // corner positions
-                        let corner_positions = get_corner_positions(min_pos, x, y, z, chunk.scale);
+                        let corner_positions = get_corner_positions(x, y, z, chunk.scale);
 
                         // voxel values (read from chunk)
                         let corner_indices = chunk.voxel_corner_indices(x, y, z);
@@ -82,7 +72,8 @@ fn process_chunk(
                             .collect();
 
                         // Calculating state
-                        let state = get_state(&eval_corners, 0.).expect("Could not get state");
+                        let state =
+                            get_state(&eval_corners, chunk.threshold).expect("Could not get state");
 
                         // edges mask (bitfield of intersected edges)
                         let edges_mask = EDGE_TABLE[state] as u16;
@@ -93,7 +84,7 @@ fn process_chunk(
                             &CORNER_POINT_INDICES,
                             &corner_positions,
                             &eval_corners,
-                            0.,
+                            chunk.threshold,
                         );
 
                         // adding triangle verts

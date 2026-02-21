@@ -26,27 +26,20 @@ pub fn triangle_verts_from_state(
 
 // Get the point coordinates at the 8 vertices of the cube
 #[inline]
-pub fn get_corner_positions(
-    min_point: Point,
-    x: usize,
-    y: usize,
-    z: usize,
-    scale: Value,
-) -> [Point; 8] {
+pub fn get_corner_positions(x: usize, y: usize, z: usize, scale: Value) -> [Point; 8] {
     let xf = scale * x as Value;
     let yf = scale * y as Value;
     let zf = scale * z as Value;
 
-    // Compute all 8 corner positions directly in global space
     [
-        point![xf + min_point.x, yf + min_point.y, zf + min_point.z],
-        point![xf + scale + min_point.x, yf + min_point.y, zf + min_point.z],
-        point![xf + scale + min_point.x, yf + scale + min_point.y, zf + min_point.z],
-        point![xf + min_point.x, yf + scale + min_point.y, zf + min_point.z],
-        point![xf + min_point.x, yf + min_point.y, zf + scale + min_point.z],
-        point![xf + scale + min_point.x, yf + min_point.y, zf + scale + min_point.z],
-        point![xf + scale + min_point.x, yf + scale + min_point.y, zf + scale + min_point.z],
-        point![xf + min_point.x, yf + scale + min_point.y, zf + scale + min_point.z],
+        point![xf, yf, zf],
+        point![xf + scale, yf, zf],
+        point![xf + scale, yf + scale, zf],
+        point![xf, yf + scale, zf],
+        point![xf, yf, zf + scale],
+        point![xf + scale, yf, zf + scale],
+        point![xf + scale, yf + scale, zf + scale],
+        point![xf, yf + scale, zf + scale],
     ]
 }
 
@@ -85,8 +78,6 @@ pub fn get_state(eval_corners: &Vec<Value>, threshold: Value) -> Result<usize> {
     Ok(state)
 }
 
-
-
 // Get the midpoints of the edges of the cube
 #[inline]
 pub fn get_edge_midpoints(
@@ -111,7 +102,7 @@ pub fn get_edge_midpoints(
 
         let t = find_t(vi, vf, threshold);
         let pe = interpolate_points(pi, pf, t); // Vec<Value>
-        edge_points[i] = Some([pe[0], pe[1], pe[2]]);
+        edge_points[i] = Some([pe[2], pe[1], pe[0]]);
     }
 
     edge_points
