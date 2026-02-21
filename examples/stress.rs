@@ -1,4 +1,4 @@
-use bevy::{pbr::wireframe::Wireframe, prelude::*};
+use bevy::prelude::*;
 use bevy_marching_cubes::{MarchingCubesPlugin, chunk::Chunk};
 
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -14,11 +14,11 @@ fn main() {
             bevy::pbr::wireframe::WireframePlugin::default(),
         ))
         .add_systems(Startup, setup)
-        .add_systems(Update, debug)
+        .add_systems(Update, (debug, spawn_chunks))
         .run();
 }
 
-fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>) {
+fn setup(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
         PanOrbitCamera {
@@ -26,7 +26,7 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
             button_pan: MouseButton::Middle,
             ..default()
         },
-        Transform::from_xyz(20., 150., 20.).looking_at(Vec3::ZERO, Vec3::Y),
+        Transform::from_xyz(50., 200., 50.).looking_at(Vec3::ZERO, Vec3::Y),
     ));
 
     commands.spawn((
@@ -36,40 +36,50 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
         },
         Transform::default().with_rotation(Quat::from_rotation_x(-45.0_f32.to_radians())),
     ));
+}
 
-    const CHUNK_SIZE: usize = 16;
+fn spawn_chunks(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+) {
+    if keyboard.just_pressed(KeyCode::Space) {
+        const CHUNK_SIZE: i32 = 32;
+        const CHUNK_DIM: i32 = 8;
 
-    let mut noise = Noise::<
-        LayeredNoise<
-            Normed<f32>,
-            Persistence,
-            Octave<MixCellGradients<OrthoGrid, Smoothstep, QuickGradients>>,
-        >,
-    >::default();
-    noise.set_frequency(0.06);
+        let mut noise = Noise::<
+            LayeredNoise<
+                Normed<f32>,
+                Persistence,
+                Octave<MixCellGradients<OrthoGrid, Smoothstep, QuickGradients>>,
+            >,
+        >::default();
+        noise.set_frequency(0.06);
 
-    for x in -4..4 {
-        for z in -4..4 {
-            let translation: Vec3 = Vec3::new(
-                x as f32 * CHUNK_SIZE as f32,
-                0.,
-                z as f32 * CHUNK_SIZE as f32,
-            );
+        for x in -CHUNK_DIM..CHUNK_DIM {
+            for z in -CHUNK_DIM..CHUNK_DIM {
+                let translation: Vec3 = Vec3::new(
+                    x as f32 * CHUNK_SIZE as f32,
+                    0.,
+                    z as f32 * CHUNK_SIZE as f32,
+                );
 
-            let mut chunk = Chunk::new(CHUNK_SIZE, 48, CHUNK_SIZE).with_threshold(0.);
-            chunk.for_each_corner_offset(translation, |x, y, z, value| {
-                *value = noise.sample_for(Vec3::new(x, y, z));
-            });
+                let mut chunk =
+                    Chunk::new(CHUNK_SIZE as usize, 128, CHUNK_SIZE as usize).with_threshold(0.);
+                chunk.for_each_corner_offset(translation, |x, y, z, value| {
+                    *value = noise.sample_for(Vec3::new(x, y, z));
+                });
 
-            commands.spawn((
-                chunk,
-                Transform::from_translation(translation),
-                MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::srgb(1., 0., 0.),
-                    ..Default::default()
-                })),
-                Wireframe,
-            ));
+                commands.spawn((
+                    chunk,
+                    Transform::from_translation(translation),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgb(1., 0., 0.),
+                        ..Default::default()
+                    })),
+                    // Wireframe,
+                ));
+            }
         }
     }
 }
