@@ -41,7 +41,7 @@ fn on_chunk_add(
 ) {
     for entity in query.iter() {
         commands.entity(entity).insert(QueuedChunk);
-        bevy::log::info!("Added Entity {} to chunk queue", entity);
+        // bevy::log::info!("Added Entity {} to chunk queue", entity);
     }
 }
 
@@ -143,6 +143,6 @@ fn process_chunk(
             .entity(entity)
             .insert(Mesh3d(meshes.add(bevy_mesh)))
             .remove::<QueuedChunk>();
-        bevy::log::info!("Processed chunk {}", entity);
+        // bevy::log::info!("Processed chunk {}", entity);
     }
 }
