@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_infinite_grid::{InfiniteGridBundle, InfiniteGridPlugin, InfiniteGridSettings};
 use bevy_marching_cubes::{MarchingCubesPlugin, chunk::Chunk};
 
 use bevy_panorbit_camera::{PanOrbitCamera, PanOrbitCameraPlugin};
@@ -10,6 +11,7 @@ fn main() {
             DefaultPlugins,
             MarchingCubesPlugin::default(),
             PanOrbitCameraPlugin,
+            InfiniteGridPlugin,
             #[cfg(not(target_arch = "wasm32"))]
             bevy::pbr::wireframe::WireframePlugin::default(),
         ))
@@ -19,6 +21,14 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
+    commands.spawn(InfiniteGridBundle {
+        settings: InfiniteGridSettings {
+            fadeout_distance: 1000.0,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+
     commands.spawn((
         Camera3d::default(),
         PanOrbitCamera {
