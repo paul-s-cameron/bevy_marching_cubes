@@ -973,11 +973,12 @@ name = "bevy_marching_cubes"
 version = "0.1.1"
 dependencies = [
  "bevy",
- "byteorder",
+ "bevy_panorbit_camera",
  "derive_more",
  "log",
  "nalgebra",
  "ndarray",
+ "noiz",
  "rayon",
  "tracing",
 ]
@@ -1032,6 +1033,15 @@ name = "bevy_mikktspace"
 version = "0.17.0-dev"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef8e4b7e61dfe7719bb03c884dc270cd46a82efb40f93e9933b990c5c190c59"
+
+[[package]]
+name = "bevy_panorbit_camera"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec2a3ef5147368953aecb485e6362ea0e23acbd3e4adb02e47058a8c16e9bfe5"
+dependencies = [
+ "bevy",
+]
 
 [[package]]
 name = "bevy_pbr"
@@ -3426,6 +3436,17 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
+]
+
+[[package]]
+name = "noiz"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a91cd88947d648a58f0f7820781e00e8c24fecfa7b00eca62ca3b7b7afe92395"
+dependencies = [
+ "bevy_math",
+ "bevy_reflect",
+ "serde",
 ]
 
 [[package]]
