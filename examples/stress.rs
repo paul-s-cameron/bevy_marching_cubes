@@ -54,8 +54,8 @@ fn spawn_chunks(
     keyboard: Res<ButtonInput<KeyCode>>,
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
-        const CHUNK_SIZE: i32 = 16;
-        const CHUNK_DIM: i32 = 8;
+        const CHUNK_SIZE: i32 = 32;
+        const CHUNK_DIM: i32 = 4;
 
         let mut noise = Noise::<
             LayeredNoise<
@@ -94,22 +94,17 @@ fn spawn_chunks(
     }
 }
 
-fn debug(mut gizmos: Gizmos, query: Query<&GlobalTransform, With<Chunk>>) {
-    for transform in query.iter() {
-        gizmos.sphere(
-            Isometry3d::from_translation(transform.translation()),
-            1.,
+fn debug(mut gizmos: Gizmos, query: Query<(&GlobalTransform, &Chunk)>) {
+    for (transform, chunk) in query.iter() {
+        let half_extents = Vec3::new(
+            chunk.size_x as f32 * chunk.scale,
+            chunk.size_y as f32 * chunk.scale,
+            chunk.size_z as f32 * chunk.scale,
+        ) / 2.0;
+        let center = transform.translation() + half_extents;
+        gizmos.cube(
+            Transform::from_translation(center).with_scale(half_extents * 2.0),
             Color::WHITE,
-        );
-        gizmos.line(
-            transform.translation(),
-            transform.translation() + Vec3::X * 10.0,
-            Color::Srgba(Srgba::new(1., 0., 0., 1.)),
-        );
-        gizmos.line(
-            transform.translation(),
-            transform.translation() + Vec3::Z * 10.0,
-            Color::Srgba(Srgba::new(0., 0., 1., 1.)),
         );
     }
 }
