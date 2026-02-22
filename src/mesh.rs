@@ -3,20 +3,25 @@ use crate::{
     types::{Point, Value, Vector},
 };
 
+/// Intermediate mesh representation produced by the marching cubes algorithm.
+///
+/// Vertices are stored flat — every group of three consecutive vertices forms one triangle.
+/// Call [`create_triangles`](MarchMesh::create_triangles) then
+/// [`create_normals`](MarchMesh::create_normals) after populating vertices.
 #[derive(Clone)]
 pub struct MarchMesh {
-    /// [[x1, y1, z1], [x2, y2, z2], ...]
+    /// Flat list of vertex positions: `[[x, y, z], ...]`
     pub vertices: Vec<Point>,
 
-    /// [[v0, v1, v2], [v3, v4, v5], ...]
+    /// Triangle index triples into `vertices`: `[[v0, v1, v2], ...]`
     pub tris: Vec<[usize; 3]>,
 
-    /// [[0., 0., 0.], [0., 0., 0.], ...]
+    /// Per-vertex face normals: `[[nx, ny, nz], ...]`
     pub normals: Vec<[Value; 3]>,
 }
 
 impl MarchMesh {
-    //create a new empty Mesh
+    /// Creates an empty mesh with no vertices, triangles, or normals.
     pub fn new_empty() -> Self {
         Self {
             vertices: Vec::new(),
@@ -25,32 +30,29 @@ impl MarchMesh {
         }
     }
 
-    //create a triangle from Point indices
+    /// Adds a triangle defined by three vertex indices.
+    ///
+    /// Returns [`MarchingCubesError::InvalidIndex`] if any index is out of bounds.
     pub fn triangle_from_verts(&mut self, x: usize, y: usize, z: usize) -> Result<()> {
-        // Need to make sure mesh isn't empty
         if self.vertices.len() <= x.max(y.max(z)) {
-            return Err(MarchingCubesError::EmptyMesh);
+            return Err(MarchingCubesError::InvalidIndex);
         }
-
-        // x/y/z are indices that form a triangle
         self.tris.push([x, y, z]);
-
         Ok(())
     }
 
-    //return triangle Point coordinates
+    /// Returns the three vertex positions of triangle `tri`.
     pub fn tri_coords(&self, tri: usize) -> Vec<Point> {
         let va = self.vertices[self.tris[tri][0]];
         let vb = self.vertices[self.tris[tri][1]];
         let vc = self.vertices[self.tris[tri][2]];
-
         vec![va, vb, vc]
     }
 
-    //return triangle normal
+    /// Computes the face normal for triangle `tri`.
+    ///
+    /// Returns the zero vector if the triangle is degenerate.
     pub fn tri_normal(&self, tri: usize) -> Vector {
-        //tri = starting Point index
-
         let va = self.vertices[self.tris[tri][0]];
         let vb = self.vertices[self.tris[tri][1]];
         let vc = self.vertices[self.tris[tri][2]];
@@ -68,10 +70,14 @@ impl MarchMesh {
         if nrm == 0.0 {
             Vector::new(0.0, 0.0, 0.0)
         } else {
-            cross / nrm //normal vector
+            cross / nrm
         }
     }
 
+    /// Generates triangles by grouping every three consecutive vertices.
+    ///
+    /// Must be called after [`set_vertices`](MarchMesh::set_vertices).
+    /// Vertex count must be a multiple of 3.
     pub fn create_triangles(&mut self) -> () {
         let mut v = 0;
         while v < self.vertices.len() {
@@ -81,19 +87,24 @@ impl MarchMesh {
         }
     }
 
+    /// Computes and stores face normals, one per vertex (three per triangle).
+    ///
+    /// Replaces any previously stored normals.
+    /// Must be called after [`create_triangles`](MarchMesh::create_triangles).
     pub fn create_normals(&mut self) -> () {
         self.normals.clear();
         for tri in 0..self.tris.len() {
             let normal = self.tri_normal(tri);
             let n = [normal.x, normal.y, normal.z];
-            // push the face normal once per vertex of the triangle
-            // TODO: Experiment with option for interpolated normals
+            // Push the face normal once per vertex of the triangle.
+            // TODO: Experiment with option for interpolated normals.
             self.normals.push(n);
             self.normals.push(n);
             self.normals.push(n);
         }
     }
 
+    /// Replaces the vertex buffer.
     pub fn set_vertices(&mut self, vertices: Vec<Point>) -> () {
         self.vertices = vertices
     }

@@ -1,3 +1,4 @@
+/// Maps each of the 12 edges to its two endpoint corner vertices.
 pub const CORNER_POINT_INDICES: [[i8; 2]; 12] = [
     [0, 1],
     [1, 2],
@@ -13,6 +14,13 @@ pub const CORNER_POINT_INDICES: [[i8; 2]; 12] = [
     [3, 7],
 ];
 
+/// Maps a voxel state (0–255) to a 12-bit bitmask of intersected edges.
+///
+/// Each bit corresponds to one edge (bits 0–11). A set bit means the iso-surface
+/// crosses that edge and an interpolated midpoint should be computed for it.
+///
+/// `state` is built by setting bit `i` for each corner `i` that is "inside"
+/// (value ≤ threshold). See [`get_state`](crate::utils::get_state).
 pub const EDGE_TABLE: [i32; 256] = [
     0x0, 0x109, 0x203, 0x30a, 0x406, 0x50f, 0x605, 0x70c, 0x80c, 0x905, 0xa0f, 0xb06, 0xc0a, 0xd03,
     0xe09, 0xf00, 0x190, 0x99, 0x393, 0x29a, 0x596, 0x49f, 0x795, 0x69c, 0x99c, 0x895, 0xb9f,
@@ -36,6 +44,17 @@ pub const EDGE_TABLE: [i32; 256] = [
     0x70c, 0x605, 0x50f, 0x406, 0x30a, 0x203, 0x109, 0x0,
 ];
 
+/// Maps a voxel state (0–255) to a list of edge indices that form triangles.
+///
+/// Each entry is up to 5 triangles encoded as edge index triples, terminated by `-1`:
+///
+/// ```text
+/// TRI_TABLE[state] = [e0, e1, e2,  e3, e4, e5,  -1, -1, ...]
+///                     \__tri0__/   \__tri1__/
+/// ```
+///
+/// Each `e` is an index into the 12 edge midpoints returned by
+/// [`get_edge_midpoints`](crate::utils::get_edge_midpoints).
 pub const TRI_TABLE: [[i8; 16]; 256] = [
     [
         -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,

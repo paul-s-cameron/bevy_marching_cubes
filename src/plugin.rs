@@ -12,13 +12,31 @@ use crate::{
     utils::{get_corner_positions, get_edge_midpoints, get_state, triangle_verts_from_state},
 };
 
+/// System set containing the marching cubes processing systems.
+///
+/// Use this to order your systems relative to mesh generation:
+/// ```rust,ignore
+/// app.add_systems(Update, my_system.before(MarchingCubesSet));
+/// ```
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MarchingCubesSet;
 
-/// Marker component for chunks that are queued for processing.
+/// Marker component added to [`Chunk`] entities that are waiting to be processed.
+///
+/// Removed automatically once the chunk's mesh has been generated.
 #[derive(Component)]
 pub struct QueuedChunk;
 
+/// Bevy plugin that drives marching cubes mesh generation.
+///
+/// When the `auto_queue` feature is enabled, any [`Chunk`] added to the world
+/// is automatically processed on the next [`Update`] frame:
+///
+/// ```text
+/// Chunk added  →  QueuedChunk inserted  →  mesh generated  →  QueuedChunk removed
+/// ```
+///
+/// Without `auto_queue`, call [`process_chunk`] manually or manage [`QueuedChunk`] yourself.
 #[derive(Default)]
 pub struct MarchingCubesPlugin;
 
@@ -34,22 +52,24 @@ impl Plugin for MarchingCubesPlugin {
     }
 }
 
+/// Inserts [`QueuedChunk`] on every newly added [`Chunk`] that doesn't already have it.
 fn on_chunk_add(
     mut commands: Commands,
     query: Query<Entity, (Added<Chunk>, Without<QueuedChunk>)>,
 ) {
     for entity in query.iter() {
         commands.entity(entity).insert(QueuedChunk);
-        // bevy::log::info!("Added Entity {} to chunk queue", entity);
     }
 }
 
+/// Processes all [`QueuedChunk`] entities: runs marching cubes and uploads the result to Bevy.
 fn process_chunk(
     mut commands: Commands,
     mut query: Query<(Entity, &mut Chunk), With<QueuedChunk>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     for (entity, mut chunk) in query.iter_mut() {
+        // --- Marching cubes (parallelised over X slices) ---
         let per_x: Vec<Vec<Point>> = (0..chunk.size_x)
             .into_par_iter()
             .map(|x| {
@@ -59,24 +79,19 @@ fn process_chunk(
 
                 for y in 0..chunk.size_y {
                     for z in 0..chunk.size_z {
-                        // corner positions
                         let corner_positions = get_corner_positions(x, y, z, chunk.scale);
 
-                        // voxel values (read from chunk)
                         let corner_indices = chunk.voxel_corner_indices(x, y, z);
                         let eval_corners: Vec<Value> = corner_indices
                             .iter()
                             .map(|[cx, cy, cz]| chunk.get(*cx, *cy, *cz))
                             .collect();
 
-                        // Calculating state
                         let state =
                             get_state(&eval_corners, chunk.threshold).expect("Could not get state");
 
-                        // edges mask (bitfield of intersected edges)
                         let edges_mask = EDGE_TABLE[state] as u16;
 
-                        // find midpoints of intersected edges
                         let edge_points = get_edge_midpoints(
                             edges_mask,
                             &CORNER_POINT_INDICES,
@@ -85,7 +100,6 @@ fn process_chunk(
                             chunk.threshold,
                         );
 
-                        // adding triangle verts
                         let new_verts = triangle_verts_from_state(edge_points, state);
                         local.extend(new_verts);
                     }
@@ -94,7 +108,7 @@ fn process_chunk(
             })
             .collect();
 
-        // Concatenate per-x results into single vertex buffer without cloning
+        // --- Merge per-X slices into a single vertex buffer ---
         let total: usize = per_x.iter().map(|v| v.len()).sum();
         let mut vertices: Vec<Point> = Vec::with_capacity(total);
         for mut v in per_x {
@@ -105,12 +119,12 @@ fn process_chunk(
         chunk.mesh.create_triangles();
         chunk.mesh.create_normals();
 
+        // --- Upload to Bevy ---
         let mut bevy_mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::RENDER_WORLD,
         );
 
-        // Convert vertices from Point3<f64> to Vec<[f32; 3]>
         let positions: Vec<[f32; 3]> = chunk
             .mesh
             .vertices
@@ -118,7 +132,6 @@ fn process_chunk(
             .map(|p| [p.x as f32, p.y as f32, p.z as f32])
             .collect();
 
-        // Convert triangle indices from Vec<[usize; 3]> to Vec<u32>
         let indices: Vec<u32> = chunk
             .mesh
             .tris
@@ -126,7 +139,6 @@ fn process_chunk(
             .flat_map(|tri| vec![tri[0] as u32, tri[1] as u32, tri[2] as u32])
             .collect();
 
-        // Convert normals from Vec<[f64; 3]> to Vec<[f32; 3]>
         let normals: Vec<[f32; 3]> = chunk
             .mesh
             .normals
@@ -142,6 +154,5 @@ fn process_chunk(
             .entity(entity)
             .insert(Mesh3d(meshes.add(bevy_mesh)))
             .remove::<QueuedChunk>();
-        // bevy::log::info!("Processed chunk {}", entity);
     }
 }
