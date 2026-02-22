@@ -1,10 +1,8 @@
-use nalgebra::{Point3, point};
-
 use crate::{
     error::{MarchingCubesError, Result},
     interp::{find_t, interpolate_points},
     tables::TRI_TABLE,
-    types::{Point, Value, Vector},
+    types::Value,
 };
 
 /// Converts the active edge midpoints for a given marching cubes `state` into
@@ -18,16 +16,13 @@ use crate::{
 /// Each edge index maps into `edge_points` to retrieve the interpolated midpoint.
 #[inline]
 pub fn triangle_verts_from_state(
-    edge_points: [Option<[Value; 3]>; 12],
+    edge_points: [Option<[f32; 3]>; 12],
     state: usize,
-) -> Vec<Point> {
+) -> Vec<[f32; 3]> {
     TRI_TABLE[state]
         .iter()
         .take_while(|&&v| v != -1)
-        .map(|&t| {
-            let arr = edge_points[t as usize].expect("edge midpoint missing");
-            Point3::new(arr[0], arr[1], arr[2])
-        })
+        .map(|&t| edge_points[t as usize].expect("edge midpoint missing"))
         .collect()
 }
 
@@ -43,42 +38,42 @@ pub fn triangle_verts_from_state(
 ///   0----1
 /// ```
 #[inline]
-pub fn get_corner_positions(x: usize, y: usize, z: usize, scale: Value) -> [Point; 8] {
+pub fn get_corner_positions(x: usize, y: usize, z: usize, scale: Value) -> [[f32; 3]; 8] {
     let xf = scale * x as Value;
     let yf = scale * y as Value;
     let zf = scale * z as Value;
 
     [
-        point![xf, yf, zf],
-        point![xf + scale, yf, zf],
-        point![xf + scale, yf + scale, zf],
-        point![xf, yf + scale, zf],
-        point![xf, yf, zf + scale],
-        point![xf + scale, yf, zf + scale],
-        point![xf + scale, yf + scale, zf + scale],
-        point![xf, yf + scale, zf + scale],
+        [xf,         yf,         zf        ],
+        [xf + scale, yf,         zf        ],
+        [xf + scale, yf + scale, zf        ],
+        [xf,         yf + scale, zf        ],
+        [xf,         yf,         zf + scale],
+        [xf + scale, yf,         zf + scale],
+        [xf + scale, yf + scale, zf + scale],
+        [xf,         yf + scale, zf + scale],
     ]
 }
 
-/// Returns the `[min, max]` bounding box corners given a `center` point and box `dims`.
+/// Returns the `[min, max]` bounding box corners given a `center` point and box dimensions.
 ///
 /// ```text
 ///  min = center - dims/2
 ///  max = center + dims/2
 /// ```
 #[inline]
-pub fn center_box(center: Point, dims: Vector) -> [Point; 2] {
-    let min_point = point![
-        center.x - dims.x / 2.0,
-        center.y - dims.y / 2.0,
-        center.z - dims.z / 2.0
+pub fn center_box(center: [f32; 3], dims: [f32; 3]) -> [[f32; 3]; 2] {
+    let min = [
+        center[0] - dims[0] / 2.0,
+        center[1] - dims[1] / 2.0,
+        center[2] - dims[2] / 2.0,
     ];
-    let max_point = point![
-        center.x + dims.x / 2.0,
-        center.y + dims.y / 2.0,
-        center.z + dims.z / 2.0
+    let max = [
+        center[0] + dims[0] / 2.0,
+        center[1] + dims[1] / 2.0,
+        center[2] + dims[2] / 2.0,
     ];
-    [min_point, max_point]
+    [min, max]
 }
 
 /// Computes the marching cubes state bitmask for a voxel.
@@ -119,11 +114,11 @@ pub fn get_state(eval_corners: &Vec<Value>, threshold: Value) -> Result<usize> {
 pub fn get_edge_midpoints(
     edges_mask: u16,
     point_indices: &[[i8; 2]; 12],
-    corner_positions: &[Point; 8],
+    corner_positions: &[[f32; 3]; 8],
     corner_values: &[Value],
     threshold: Value,
-) -> [Option<[Value; 3]>; 12] {
-    let mut edge_points: [Option<[Value; 3]>; 12] = [None; 12];
+) -> [Option<[f32; 3]>; 12] {
+    let mut edge_points: [Option<[f32; 3]>; 12] = [None; 12];
 
     for i in 0..12_usize {
         if (edges_mask & (1 << i)) == 0 {
@@ -137,8 +132,7 @@ pub fn get_edge_midpoints(
         let pf = corner_positions[pair[1] as usize];
 
         let t = find_t(vi, vf, threshold);
-        let pe = interpolate_points(pi, pf, t);
-        edge_points[i] = Some([pe[0], pe[1], pe[2]]);
+        edge_points[i] = Some(interpolate_points(pi, pf, t));
     }
 
     edge_points

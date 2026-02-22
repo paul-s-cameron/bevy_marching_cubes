@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use bevy::{pbr::wireframe::Wireframe, prelude::*};
-use bevy_marching_cubes::{MarchingCubesPlugin, chunk::Chunk, types::Point};
+use bevy_marching_cubes::{MarchingCubesPlugin, chunk::Chunk};
 
 fn main() {
     App::new()
@@ -29,8 +29,8 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
         Transform::default().with_rotation(Quat::from_rotation_x(PI)),
     ));
 
-    let function = |_p: Point| {
-        let distance = (_p.x - 4.).hypot(_p.y - 4.).hypot(_p.z - 4.);
+    let function = |x: f32, y: f32, z: f32| {
+        let distance = (x - 4.).hypot(y - 4.).hypot(z - 4.);
         distance - 2.
     };
 

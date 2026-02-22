@@ -7,4 +7,5 @@ pub mod tables;
 pub mod types;
 pub mod utils;
 
-pub use plugin::MarchingCubesPlugin;
+pub use mesh::GeneratedMesh;
+pub use plugin::{MarchingCubesPlugin, MarchingCubesSet, QueuedChunk};

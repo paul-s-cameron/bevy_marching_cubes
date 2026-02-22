@@ -7,47 +7,69 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
     chunk::Chunk,
+    mesh::GeneratedMesh,
     tables::{CORNER_POINT_INDICES, EDGE_TABLE},
-    types::{Point, Value},
+    types::Value,
     utils::{get_corner_positions, get_edge_midpoints, get_state, triangle_verts_from_state},
 };
 
-/// System set containing the marching cubes processing systems.
+/// System sets for the marching cubes pipeline.
 ///
-/// Use this to order your systems relative to mesh generation:
+/// Use these to order your own systems relative to mesh generation:
+///
 /// ```rust,ignore
-/// app.add_systems(Update, my_system.before(MarchingCubesSet));
+/// // Run after geometry is ready but before it's uploaded — ideal for collider generation:
+/// app.add_systems(Update, build_collider.after(MarchingCubesSet::Generate)
+///                                       .before(MarchingCubesSet::Upload));
+/// ```
+///
+/// ```text
+/// MarchingCubesSet::Generate  →  [your systems]  →  MarchingCubesSet::Upload
 /// ```
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MarchingCubesSet;
+pub enum MarchingCubesSet {
+    /// Runs marching cubes and inserts [`GeneratedMesh`] on each queued chunk.
+    Generate,
+    /// Uploads [`GeneratedMesh`] data into a Bevy [`Mesh3d`] and removes [`GeneratedMesh`].
+    Upload,
+}
 
 /// Marker component added to [`Chunk`] entities that are waiting to be processed.
 ///
-/// Removed automatically once the chunk's mesh has been generated.
+/// Removed automatically once the chunk's mesh has been generated and uploaded.
 #[derive(Component)]
 pub struct QueuedChunk;
 
 /// Bevy plugin that drives marching cubes mesh generation.
 ///
-/// When the `auto_queue` feature is enabled, any [`Chunk`] added to the world
-/// is automatically processed on the next [`Update`] frame:
+/// When the `auto_queue` feature is enabled, any [`Chunk`] added to the world is
+/// automatically processed within the same [`Update`] frame it is added:
 ///
 /// ```text
-/// Chunk added  →  QueuedChunk inserted  →  mesh generated  →  QueuedChunk removed
+/// Chunk added
+///   → QueuedChunk inserted          (on_chunk_add)
+///   → GeneratedMesh inserted        (MarchingCubesSet::Generate)
+///   → [your collider systems here]
+///   → Mesh3d inserted               (MarchingCubesSet::Upload)
+///   → QueuedChunk + GeneratedMesh removed
 /// ```
-///
-/// Without `auto_queue`, call [`process_chunk`] manually or manage [`QueuedChunk`] yourself.
 #[derive(Default)]
 pub struct MarchingCubesPlugin;
 
 impl Plugin for MarchingCubesPlugin {
     fn build(&self, app: &mut App) {
         #[cfg(feature = "auto_queue")]
-        app.add_systems(
+        app.configure_sets(
             Update,
-            (on_chunk_add, process_chunk)
-                .chain()
-                .in_set(MarchingCubesSet),
+            (MarchingCubesSet::Generate, MarchingCubesSet::Upload).chain(),
+        )
+        .add_systems(
+            Update,
+            (
+                on_chunk_add,
+                generate_mesh.in_set(MarchingCubesSet::Generate),
+                upload_mesh.in_set(MarchingCubesSet::Upload),
+            ),
         );
     }
 }
@@ -62,18 +84,25 @@ fn on_chunk_add(
     }
 }
 
-/// Processes all [`QueuedChunk`] entities: runs marching cubes and uploads the result to Bevy.
-fn process_chunk(
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut Chunk), With<QueuedChunk>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-) {
-    for (entity, mut chunk) in query.iter_mut() {
+/// Runs marching cubes on all [`QueuedChunk`] entities and inserts a [`GeneratedMesh`].
+///
+/// Per-x-slice work is parallelised with Rayon. The pipeline per voxel is:
+///
+/// ```text
+/// 1. get_corner_positions       →  8 world-space points
+/// 2. chunk.get (×8)             →  8 scalar values
+/// 3. get_state                  →  256-entry lookup key
+/// 4. EDGE_TABLE[state]          →  bitmask of intersected edges
+/// 5. get_edge_midpoints         →  up to 12 interpolated points
+/// 6. triangle_verts_from_state  →  triangle vertices from TRI_TABLE
+/// ```
+fn generate_mesh(mut commands: Commands, query: Query<(Entity, &Chunk), With<QueuedChunk>>) {
+    for (entity, chunk) in query.iter() {
         // --- Marching cubes (parallelised over X slices) ---
-        let per_x: Vec<Vec<Point>> = (0..chunk.size_x)
+        let per_x: Vec<Vec<[f32; 3]>> = (0..chunk.size_x)
             .into_par_iter()
             .map(|x| {
-                let mut local: Vec<Point> = Vec::new();
+                let mut local: Vec<[f32; 3]> = Vec::new();
                 let per_voxel_max = 15_usize; // upper bound of vertices per voxel
                 local.reserve(chunk.size_y * chunk.size_z * per_voxel_max);
 
@@ -100,8 +129,7 @@ fn process_chunk(
                             chunk.threshold,
                         );
 
-                        let new_verts = triangle_verts_from_state(edge_points, state);
-                        local.extend(new_verts);
+                        local.extend(triangle_verts_from_state(edge_points, state));
                     }
                 }
                 local
@@ -110,49 +138,44 @@ fn process_chunk(
 
         // --- Merge per-X slices into a single vertex buffer ---
         let total: usize = per_x.iter().map(|v| v.len()).sum();
-        let mut vertices: Vec<Point> = Vec::with_capacity(total);
+        let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(total);
         for mut v in per_x {
             vertices.append(&mut v);
         }
 
-        chunk.mesh.set_vertices(vertices);
-        chunk.mesh.create_triangles();
-        chunk.mesh.create_normals();
+        commands
+            .entity(entity)
+            .insert(GeneratedMesh::build(vertices));
+    }
+}
 
-        // --- Upload to Bevy ---
+/// Uploads a [`GeneratedMesh`] into a Bevy [`Mesh3d`], then removes [`GeneratedMesh`] and [`QueuedChunk`].
+///
+/// The three vertex data Vecs are **moved** directly into the Bevy mesh with no copies.
+fn upload_mesh(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut GeneratedMesh), With<QueuedChunk>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    for (entity, mut generated) in query.iter_mut() {
         let mut bevy_mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::RENDER_WORLD,
         );
 
-        let positions: Vec<[f32; 3]> = chunk
-            .mesh
-            .vertices
-            .iter()
-            .map(|p| [p.x as f32, p.y as f32, p.z as f32])
-            .collect();
+        // Zero-copy move into Bevy
+        let vertices = std::mem::take(&mut generated.vertices);
+        let normals = std::mem::take(&mut generated.normals);
+        let indices = std::mem::take(&mut generated.indices);
 
-        let indices: Vec<u32> = chunk
-            .mesh
-            .tris
-            .iter()
-            .flat_map(|tri| vec![tri[0] as u32, tri[1] as u32, tri[2] as u32])
-            .collect();
-
-        let normals: Vec<[f32; 3]> = chunk
-            .mesh
-            .normals
-            .iter()
-            .map(|n| [n[0] as f32, n[1] as f32, n[2] as f32])
-            .collect();
-
-        bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+        bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
         bevy_mesh.insert_indices(Indices::U32(indices));
 
         commands
             .entity(entity)
             .insert(Mesh3d(meshes.add(bevy_mesh)))
+            .remove::<GeneratedMesh>()
             .remove::<QueuedChunk>();
     }
 }

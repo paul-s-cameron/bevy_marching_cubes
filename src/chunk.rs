@@ -1,15 +1,13 @@
 use bevy::prelude::*;
-use nalgebra::point;
 
-use crate::{
-    mesh::MarchMesh,
-    types::{CompiledFunction, Point, Value},
-};
+use crate::types::{CompiledFunction, Value};
 
 /// A voxel grid that holds scalar field values and produces a marching cubes mesh.
 ///
 /// The grid has `(size_x + 1) × (size_y + 1) × (size_z + 1)` corner points
 /// and `size_x × size_y × size_z` voxels.
+///
+/// Values are stored as `values[z][y][x]`.
 #[derive(Component)]
 #[require(Transform)]
 pub struct Chunk {
@@ -25,10 +23,6 @@ pub struct Chunk {
     pub threshold: Value,
     /// Scalar field values, indexed `[z][y][x]`.
     pub values: Vec<Vec<Vec<Value>>>,
-    /// World-space positions of each corner, indexed `[z][y][x]`.
-    pub grid_points: Vec<Vec<Vec<Point>>>,
-    /// The generated mesh (populated by the plugin after processing).
-    pub mesh: MarchMesh,
 }
 
 impl Default for Chunk {
@@ -40,8 +34,6 @@ impl Default for Chunk {
             scale: 1.,
             threshold: 0.,
             values: vec![],
-            grid_points: vec![],
-            mesh: MarchMesh::new_empty(),
         }
     }
 }
@@ -53,13 +45,11 @@ impl Chunk {
     /// per axis so that every voxel has a full set of 8 corners.
     pub fn new(size_x: usize, size_y: usize, size_z: usize) -> Self {
         let values = vec![vec![vec![0.; size_x + 1]; size_y + 1]; size_z + 1];
-        let grid_points = vec![vec![vec![point![0., 0., 0.]; size_x + 1]; size_y + 1]; size_z + 1];
         Self {
             size_x,
             size_y,
             size_z,
             values,
-            grid_points,
             ..Default::default()
         }
     }
@@ -165,8 +155,7 @@ impl Chunk {
                     let xf = x as Value * self.scale;
                     let yf = y as Value * self.scale;
                     let zf = z as Value * self.scale;
-                    let p = point![xf, yf, zf];
-                    self.set(x as usize, y as usize, z as usize, function(p))
+                    self.set(x, y, z, function(xf, yf, zf))
                 })
             })
         });
