@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use bevy::prelude::*;
 
 use crate::types::{CompiledFunction, Value};
@@ -8,6 +10,9 @@ use crate::types::{CompiledFunction, Value};
 /// and `size_x × size_y × size_z` voxels.
 ///
 /// Values are stored as `values[z][y][x]`.
+///
+/// `values` is wrapped in an [`Arc`] so the async mesh-generation task can hold a reference
+/// to the grid without copying it.
 #[derive(Component)]
 #[require(Transform)]
 pub struct Chunk {
@@ -22,7 +27,7 @@ pub struct Chunk {
     /// Iso-surface threshold — corners ≤ threshold are "inside".
     pub threshold: Value,
     /// Scalar field values, indexed `[z][y][x]`.
-    pub values: Vec<Vec<Vec<Value>>>,
+    pub values: Arc<Vec<Vec<Vec<Value>>>>,
 }
 
 impl Default for Chunk {
@@ -33,7 +38,7 @@ impl Default for Chunk {
             size_z: 0,
             scale: 1.,
             threshold: 0.,
-            values: vec![],
+            values: Arc::new(vec![]),
         }
     }
 }
@@ -49,7 +54,7 @@ impl Chunk {
             size_x,
             size_y,
             size_z,
-            values,
+            values: Arc::new(values),
             ..Default::default()
         }
     }
@@ -60,10 +65,44 @@ impl Chunk {
         self
     }
 
+    /// Replaces the scalar field values with a previously saved [`Arc`].
+    ///
+    /// Use this to respawn a chunk with data retained from a prior despawn:
+    ///
+    /// ```rust,ignore
+    /// // Before despawning — store the Arc, not a deep copy:
+    /// let saved = Arc::clone(&chunk.values);
+    /// commands.entity(entity).despawn();
+    ///
+    /// // Later, respawn with zero allocation:
+    /// commands.spawn(
+    ///     Chunk::new(size_x, size_y, size_z)
+    ///         .with_values(saved)
+    ///         .with_threshold(threshold),
+    /// );
+    /// ```
+    ///
+    /// # Panics
+    /// Panics (in debug) if the Arc's grid dimensions don't match `size_x/y/z + 1`.
+    pub fn with_values(mut self, values: Arc<Vec<Vec<Vec<Value>>>>) -> Self {
+        debug_assert_eq!(values.len(), self.size_z + 1);
+        debug_assert_eq!(values[0].len(), self.size_y + 1);
+        debug_assert_eq!(values[0][0].len(), self.size_x + 1);
+        self.values = values;
+        self
+    }
+
     /// Sets the iso-surface threshold.
     pub fn with_threshold(mut self, threshold: f32) -> Self {
         self.threshold = threshold;
         self
+    }
+
+    /// Returns a mutable reference to the inner values grid.
+    ///
+    /// If the Arc is shared this will clone the data first (copy-on-write).
+    fn values_mut(&mut self) -> &mut Vec<Vec<Vec<Value>>> {
+        Arc::make_mut(&mut self.values)
     }
 
     /// Calls `f(x, y, z, &mut value)` for every corner in the grid.
@@ -73,10 +112,12 @@ impl Chunk {
     where
         F: FnMut(f32, f32, f32, &mut Value),
     {
-        for x in 0..=self.size_x {
-            for y in 0..=self.size_y {
-                for z in 0..=self.size_z {
-                    f(x as f32, y as f32, z as f32, &mut self.values[z][y][x]);
+        let (size_x, size_y, size_z) = (self.size_x, self.size_y, self.size_z);
+        let values = self.values_mut();
+        for x in 0..=size_x {
+            for y in 0..=size_y {
+                for z in 0..=size_z {
+                    f(x as f32, y as f32, z as f32, &mut values[z][y][x]);
                 }
             }
         }
@@ -90,14 +131,16 @@ impl Chunk {
     where
         F: FnMut(f32, f32, f32, &mut Value),
     {
-        for x in 0..=self.size_x {
-            for y in 0..=self.size_y {
-                for z in 0..=self.size_z {
+        let (size_x, size_y, size_z) = (self.size_x, self.size_y, self.size_z);
+        let values = self.values_mut();
+        for x in 0..=size_x {
+            for y in 0..=size_y {
+                for z in 0..=size_z {
                     f(
                         min_point.x + x as f32,
                         min_point.y + y as f32,
                         min_point.z + z as f32,
-                        &mut self.values[z][y][x],
+                        &mut values[z][y][x],
                     );
                 }
             }
@@ -111,7 +154,7 @@ impl Chunk {
 
     /// Sets the scalar field value at corner `(x, y, z)`.
     pub fn set(&mut self, x: usize, y: usize, z: usize, v: Value) {
-        self.values[z][y][x] = v
+        self.values_mut()[z][y][x] = v
     }
 
     /// Returns the 8 corner indices `[x, y, z]` of the voxel at `(x, y, z)`.
@@ -149,13 +192,16 @@ impl Chunk {
     ///
     /// Coordinates passed to `function` are scaled by [`scale`](Chunk::scale).
     pub fn fill(&mut self, function: &CompiledFunction) {
-        (0..=self.size_x).for_each(|x| {
-            (0..=self.size_y).for_each(|y| {
-                (0..=self.size_z).for_each(|z| {
-                    let xf = x as Value * self.scale;
-                    let yf = y as Value * self.scale;
-                    let zf = z as Value * self.scale;
-                    self.set(x, y, z, function(xf, yf, zf))
+        let (size_x, size_y, size_z) = (self.size_x, self.size_y, self.size_z);
+        let scale = self.scale;
+        let values = self.values_mut();
+        (0..=size_x).for_each(|x| {
+            (0..=size_y).for_each(|y| {
+                (0..=size_z).for_each(|z| {
+                    let xf = x as Value * scale;
+                    let yf = y as Value * scale;
+                    let zf = z as Value * scale;
+                    values[z][y][x] = function(xf, yf, zf);
                 })
             })
         });
