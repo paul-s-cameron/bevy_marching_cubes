@@ -5,13 +5,13 @@ use crate::{
 
 #[derive(Clone)]
 pub struct MarchMesh {
-    // [[x1, y1, z1], [x2, y2, z2], ...]
+    /// [[x1, y1, z1], [x2, y2, z2], ...]
     pub vertices: Vec<Point>,
 
-    // [[v0, v1, v2], [v3, v4, v5], ...]
+    /// [[v0, v1, v2], [v3, v4, v5], ...]
     pub tris: Vec<[usize; 3]>,
 
-    // per-vertex normals
+    /// [[0., 0., 0.], [0., 0., 0.], ...]
     pub normals: Vec<[Value; 3]>,
 }
 

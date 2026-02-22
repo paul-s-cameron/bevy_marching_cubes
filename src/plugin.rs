@@ -7,7 +7,6 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use crate::{
     chunk::Chunk,
-    mesh::MarchMesh,
     tables::{CORNER_POINT_INDICES, EDGE_TABLE},
     types::{Point, Value},
     utils::{get_corner_positions, get_edge_midpoints, get_state, triangle_verts_from_state},
@@ -51,7 +50,6 @@ fn process_chunk(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     for (entity, mut chunk) in query.iter_mut() {
-        let mut mesh = MarchMesh::new_empty();
         let per_x: Vec<Vec<Point>> = (0..chunk.size_x)
             .into_par_iter()
             .map(|x| {
@@ -103,9 +101,9 @@ fn process_chunk(
             vertices.append(&mut v);
         }
 
-        mesh.set_vertices(vertices);
-        mesh.create_triangles();
-        mesh.create_normals();
+        chunk.mesh.set_vertices(vertices);
+        chunk.mesh.create_triangles();
+        chunk.mesh.create_normals();
 
         let mut bevy_mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
@@ -113,27 +111,28 @@ fn process_chunk(
         );
 
         // Convert vertices from Point3<f64> to Vec<[f32; 3]>
-        let positions: Vec<[f32; 3]> = mesh
+        let positions: Vec<[f32; 3]> = chunk
+            .mesh
             .vertices
             .iter()
             .map(|p| [p.x as f32, p.y as f32, p.z as f32])
             .collect();
 
         // Convert triangle indices from Vec<[usize; 3]> to Vec<u32>
-        let indices: Vec<u32> = mesh
+        let indices: Vec<u32> = chunk
+            .mesh
             .tris
             .iter()
             .flat_map(|tri| vec![tri[0] as u32, tri[1] as u32, tri[2] as u32])
             .collect();
 
         // Convert normals from Vec<[f64; 3]> to Vec<[f32; 3]>
-        let normals: Vec<[f32; 3]> = mesh
+        let normals: Vec<[f32; 3]> = chunk
+            .mesh
             .normals
             .iter()
             .map(|n| [n[0] as f32, n[1] as f32, n[2] as f32])
             .collect();
-
-        chunk.mesh = Some(mesh);
 
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
         bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);

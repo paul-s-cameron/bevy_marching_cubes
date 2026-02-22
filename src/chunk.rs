@@ -16,23 +16,38 @@ pub struct Chunk {
     pub threshold: Value,
     pub values: Vec<Vec<Vec<Value>>>,
     pub grid_points: Vec<Vec<Vec<Point>>>,
-    pub mesh: Option<MarchMesh>,
+    pub mesh: MarchMesh,
+}
+
+impl Default for Chunk {
+    fn default() -> Self {
+        Self {
+            size_x: 0,
+            size_y: 0,
+            size_z: 0,
+            scale: 1.,
+            threshold: 0.,
+            values: vec![],
+            grid_points: vec![],
+            mesh: MarchMesh::new_empty(),
+        }
+    }
 }
 
 impl Chunk {
+    /// Initializes a new chunk with the given dimensions.
+    ///
+    ///
     pub fn new(size_x: usize, size_y: usize, size_z: usize) -> Self {
-        let scale = 1.;
         let values = vec![vec![vec![0.; size_x + 1]; size_y + 1]; size_z + 1];
         let grid_points = vec![vec![vec![point![0., 0., 0.]; size_x + 1]; size_y + 1]; size_z + 1];
         Self {
             size_x,
             size_y,
             size_z,
-            scale,
-            threshold: 0.,
             values,
             grid_points,
-            mesh: None,
+            ..Default::default()
         }
     }
 

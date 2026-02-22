@@ -34,7 +34,7 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
         distance - 2.
     };
 
-    let mut chunk = Chunk::new(9, 9, 9);
+    let mut chunk = Chunk::new(8, 8, 8);
     chunk.fill(&function);
 
     commands.spawn((
