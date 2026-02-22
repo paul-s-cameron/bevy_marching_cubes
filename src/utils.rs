@@ -19,7 +19,7 @@ pub fn triangle_verts_from_state(
         .take_while(|&&v| v != -1)
         .map(|&t| {
             let arr = edge_points[t as usize].expect("edge midpoint missing");
-            Point3::new(arr[2], arr[1], arr[0])
+            Point3::new(arr[0], arr[1], arr[2])
         })
         .collect()
 }
@@ -89,7 +89,7 @@ pub fn get_edge_midpoints(
 ) -> [Option<[Value; 3]>; 12] {
     let mut edge_points: [Option<[Value; 3]>; 12] = [None; 12];
 
-    for i in 0..12usize {
+    for i in 0..12_usize {
         if (edges_mask & (1 << i)) == 0 {
             continue;
         }
@@ -102,7 +102,7 @@ pub fn get_edge_midpoints(
 
         let t = find_t(vi, vf, threshold);
         let pe = interpolate_points(pi, pf, t); // Vec<Value>
-        edge_points[i] = Some([pe[2], pe[1], pe[0]]);
+        edge_points[i] = Some([pe[0], pe[1], pe[2]]);
     }
 
     edge_points
