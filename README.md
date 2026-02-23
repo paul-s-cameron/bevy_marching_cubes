@@ -14,7 +14,7 @@ Example (minimal):
 
 ```rust
 use bevy::prelude::*;
-use bevy_marching_cubes::{MarchingCubesPlugin, chunk::Chunk, types::Point};
+use bevy_marching_cubes::{MarchingCubesPlugin, chunk::Chunk};
 
 fn main() {
     App::new()
@@ -28,7 +28,10 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
     let mut chunk = Chunk::new(8, 8, 8);
     
     // Create and fill a chunk with an SDF (example: sphere)
-    let sdf = |p: Point| { (p.x - 16.0).hypot(p.y - 16.0).hypot(p.z - 16.0) - 8.0 };
+    let function = |x: f32, y: f32, z: f32| {
+        let distance = (x - 4.).hypot(y - 4.).hypot(z - 4.);
+        distance - 2.
+    };
     chunk.fill(&sdf);
 
     commands.spawn((
