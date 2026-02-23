@@ -45,7 +45,7 @@ fn setup(mut commands: Commands, mut materials: ResMut<Assets<StandardMaterial>>
 
 | bevy | bevy_marching_cubes |
 |------|---------------------|
-| 0.18 | 0.1                 |
+| 0.18 | 0.18                |
 
 ## Running the examples
 
