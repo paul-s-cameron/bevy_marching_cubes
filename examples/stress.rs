@@ -55,7 +55,7 @@ fn spawn_chunks(
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
         const CHUNK_SIZE: i32 = 32;
-        const CHUNK_DIM: i32 = 4;
+        const CHUNK_DIM: i32 = 16;
 
         let mut noise = Noise::<
             LayeredNoise<
