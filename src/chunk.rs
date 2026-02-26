@@ -123,23 +123,25 @@ impl Chunk {
         }
     }
 
-    /// Like [`for_each_corner`](Chunk::for_each_corner), but adds `min_point` to each
-    /// coordinate before passing it to `f`.
+    /// Like [`for_each_corner`](Chunk::for_each_corner), but scales each index by
+    /// [`scale`](Chunk::scale) and adds `min_point` before passing to `f`.
     ///
-    /// Useful for filling a chunk that is offset in world space.
+    /// Coordinates passed to `f` are true world-space positions, so the closure
+    /// can sample a noise function or SDF directly without needing to know the scale.
     pub fn for_each_corner_offset<F>(&mut self, min_point: Vec3, mut f: F)
     where
         F: FnMut(f32, f32, f32, &mut Value),
     {
         let (size_x, size_y, size_z) = (self.size_x, self.size_y, self.size_z);
+        let scale = self.scale;
         let values = self.values_mut();
         for x in 0..=size_x {
             for y in 0..=size_y {
                 for z in 0..=size_z {
                     f(
-                        min_point.x + x as f32,
-                        min_point.y + y as f32,
-                        min_point.z + z as f32,
+                        min_point.x + x as f32 * scale,
+                        min_point.y + y as f32 * scale,
+                        min_point.z + z as f32 * scale,
                         &mut values[z][y][x],
                     );
                 }

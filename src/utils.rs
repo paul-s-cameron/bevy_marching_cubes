@@ -1,6 +1,7 @@
+#[cfg(feature = "interpolate_midpoints")]
+use crate::interp::{find_t, interpolate_points};
 use crate::{
     error::{MarchingCubesError, Result},
-    interp::{find_t, interpolate_points},
     tables::TRI_TABLE,
     types::Value,
 };
@@ -44,14 +45,14 @@ pub fn get_corner_positions(x: usize, y: usize, z: usize, scale: Value) -> [[f32
     let zf = scale * z as Value;
 
     [
-        [xf,         yf,         zf        ],
-        [xf + scale, yf,         zf        ],
-        [xf + scale, yf + scale, zf        ],
-        [xf,         yf + scale, zf        ],
-        [xf,         yf,         zf + scale],
-        [xf + scale, yf,         zf + scale],
+        [xf, yf, zf],
+        [xf + scale, yf, zf],
+        [xf + scale, yf + scale, zf],
+        [xf, yf + scale, zf],
+        [xf, yf, zf + scale],
+        [xf + scale, yf, zf + scale],
         [xf + scale, yf + scale, zf + scale],
-        [xf,         yf + scale, zf + scale],
+        [xf, yf + scale, zf + scale],
     ]
 }
 
@@ -126,13 +127,25 @@ pub fn get_edge_midpoints(
         }
 
         let pair = point_indices[i];
-        let vi = corner_values[pair[0] as usize];
-        let vf = corner_values[pair[1] as usize];
         let pi = corner_positions[pair[0] as usize];
         let pf = corner_positions[pair[1] as usize];
 
-        let t = find_t(vi, vf, threshold);
-        edge_points[i] = Some(interpolate_points(pi, pf, t));
+        #[cfg(feature = "interpolate_midpoints")]
+        {
+            let vi = corner_values[pair[0] as usize];
+            let vf = corner_values[pair[1] as usize];
+            let t = find_t(vi, vf, threshold);
+            edge_points[i] = Some(interpolate_points(pi, pf, t));
+        }
+        #[cfg(not(feature = "interpolate_midpoints"))]
+        {
+            let _ = (corner_values, threshold);
+            edge_points[i] = Some([
+                (pi[0] + pf[0]) * 0.5,
+                (pi[1] + pf[1]) * 0.5,
+                (pi[2] + pf[2]) * 0.5,
+            ]);
+        }
     }
 
     edge_points

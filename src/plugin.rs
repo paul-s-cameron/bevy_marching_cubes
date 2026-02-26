@@ -192,28 +192,22 @@ fn poll_mesh_tasks(mut commands: Commands, mut query: Query<(Entity, &mut Comput
 /// The three vertex data Vecs are **moved** directly into the Bevy mesh with no copies.
 fn upload_mesh(
     mut commands: Commands,
-    mut query: Query<(Entity, &mut GeneratedMesh), With<QueuedChunk>>,
+    query: Query<(Entity, &GeneratedMesh), With<QueuedChunk>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    for (entity, mut generated) in query.iter_mut() {
+    for (entity, generated) in query.iter() {
         let mut bevy_mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
             RenderAssetUsages::RENDER_WORLD,
         );
 
-        // Zero-copy move into Bevy
-        let vertices = std::mem::take(&mut generated.vertices);
-        let normals = std::mem::take(&mut generated.normals);
-        let indices = std::mem::take(&mut generated.indices);
-
-        bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
-        bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, normals);
-        bevy_mesh.insert_indices(Indices::U32(indices));
+        bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, generated.vertices.clone());
+        bevy_mesh.insert_attribute(Mesh::ATTRIBUTE_NORMAL, generated.normals.clone());
+        bevy_mesh.insert_indices(Indices::U32(generated.indices.clone()));
 
         commands
             .entity(entity)
             .insert(Mesh3d(meshes.add(bevy_mesh)))
-            .remove::<GeneratedMesh>()
             .remove::<QueuedChunk>();
     }
 }
