@@ -9,7 +9,12 @@ use crate::types::{CompiledFunction, Value};
 /// The grid has `(size_x + 1) × (size_y + 1) × (size_z + 1)` corner points
 /// and `size_x × size_y × size_z` voxels.
 ///
-/// Values are stored as `values[z][y][x]`.
+/// Values are stored in a flat `Vec<f32>` with strides:
+/// ```text
+/// index(x, y, z) = z * stride_z + y * stride_y + x
+/// stride_y = size_x + 1
+/// stride_z = (size_y + 1) * stride_y
+/// ```
 ///
 /// `values` is wrapped in an [`Arc`] so the async mesh-generation task can hold a reference
 /// to the grid without copying it.
@@ -26,8 +31,12 @@ pub struct Chunk {
     pub scale: Value,
     /// Iso-surface threshold — corners ≤ threshold are "inside".
     pub threshold: Value,
-    /// Scalar field values, indexed `[z][y][x]`.
-    pub values: Arc<Vec<Vec<Vec<Value>>>>,
+    /// Flat scalar field — index with `idx(x, y, z)`.
+    pub values: Arc<Vec<Value>>,
+    /// `size_x + 1`
+    pub stride_y: usize,
+    /// `(size_y + 1) * stride_y`
+    pub stride_z: usize,
 }
 
 impl Default for Chunk {
@@ -39,6 +48,8 @@ impl Default for Chunk {
             scale: 1.,
             threshold: 0.,
             values: Arc::new(vec![]),
+            stride_y: 1,
+            stride_z: 1,
         }
     }
 }
@@ -49,46 +60,29 @@ impl Chunk {
     /// All values are initialised to `0.0`. The grid has `(size + 1)` corners
     /// per axis so that every voxel has a full set of 8 corners.
     pub fn new(size_x: usize, size_y: usize, size_z: usize) -> Self {
-        let values = vec![vec![vec![0.; size_x + 1]; size_y + 1]; size_z + 1];
+        let stride_y = size_x + 1;
+        let stride_z = (size_y + 1) * stride_y;
+        let len = (size_z + 1) * stride_z;
         Self {
             size_x,
             size_y,
             size_z,
-            values: Arc::new(values),
+            values: Arc::new(vec![0.; len]),
+            stride_y,
+            stride_z,
             ..Default::default()
         }
+    }
+
+    /// Returns the flat index for corner `(x, y, z)`.
+    #[inline]
+    pub fn idx(&self, x: usize, y: usize, z: usize) -> usize {
+        z * self.stride_z + y * self.stride_y + x
     }
 
     /// Sets the world-space size of each voxel edge.
     pub fn with_scale(mut self, scale: f32) -> Self {
         self.scale = scale;
-        self
-    }
-
-    /// Replaces the scalar field values with a previously saved [`Arc`].
-    ///
-    /// Use this to respawn a chunk with data retained from a prior despawn:
-    ///
-    /// ```rust,ignore
-    /// // Before despawning — store the Arc, not a deep copy:
-    /// let saved = Arc::clone(&chunk.values);
-    /// commands.entity(entity).despawn();
-    ///
-    /// // Later, respawn with zero allocation:
-    /// commands.spawn(
-    ///     Chunk::new(size_x, size_y, size_z)
-    ///         .with_values(saved)
-    ///         .with_threshold(threshold),
-    /// );
-    /// ```
-    ///
-    /// # Panics
-    /// Panics (in debug) if the Arc's grid dimensions don't match `size_x/y/z + 1`.
-    pub fn with_values(mut self, values: Arc<Vec<Vec<Vec<Value>>>>) -> Self {
-        debug_assert_eq!(values.len(), self.size_z + 1);
-        debug_assert_eq!(values[0].len(), self.size_y + 1);
-        debug_assert_eq!(values[0][0].len(), self.size_x + 1);
-        self.values = values;
         self
     }
 
@@ -98,10 +92,10 @@ impl Chunk {
         self
     }
 
-    /// Returns a mutable reference to the inner values grid.
+    /// Returns a mutable reference to the inner values vec.
     ///
     /// If the Arc is shared this will clone the data first (copy-on-write).
-    fn values_mut(&mut self) -> &mut Vec<Vec<Vec<Value>>> {
+    fn values_mut(&mut self) -> &mut Vec<Value> {
         Arc::make_mut(&mut self.values)
     }
 
@@ -113,11 +107,13 @@ impl Chunk {
         F: FnMut(f32, f32, f32, &mut Value),
     {
         let (size_x, size_y, size_z) = (self.size_x, self.size_y, self.size_z);
+        let (stride_y, stride_z) = (self.stride_y, self.stride_z);
         let values = self.values_mut();
-        for x in 0..=size_x {
+        for z in 0..=size_z {
             for y in 0..=size_y {
-                for z in 0..=size_z {
-                    f(x as f32, y as f32, z as f32, &mut values[z][y][x]);
+                for x in 0..=size_x {
+                    let i = z * stride_z + y * stride_y + x;
+                    f(x as f32, y as f32, z as f32, &mut values[i]);
                 }
             }
         }
@@ -133,16 +129,18 @@ impl Chunk {
         F: FnMut(f32, f32, f32, &mut Value),
     {
         let (size_x, size_y, size_z) = (self.size_x, self.size_y, self.size_z);
+        let (stride_y, stride_z) = (self.stride_y, self.stride_z);
         let scale = self.scale;
         let values = self.values_mut();
-        for x in 0..=size_x {
+        for z in 0..=size_z {
             for y in 0..=size_y {
-                for z in 0..=size_z {
+                for x in 0..=size_x {
+                    let i = z * stride_z + y * stride_y + x;
                     f(
                         min_point.x + x as f32 * scale,
                         min_point.y + y as f32 * scale,
                         min_point.z + z as f32 * scale,
-                        &mut values[z][y][x],
+                        &mut values[i],
                     );
                 }
             }
@@ -151,12 +149,13 @@ impl Chunk {
 
     /// Returns the scalar field value at corner `(x, y, z)`.
     pub fn get(&self, x: usize, y: usize, z: usize) -> Value {
-        self.values[z][y][x]
+        self.values[self.idx(x, y, z)]
     }
 
     /// Sets the scalar field value at corner `(x, y, z)`.
     pub fn set(&mut self, x: usize, y: usize, z: usize, v: Value) {
-        self.values_mut()[z][y][x] = v
+        let i = self.idx(x, y, z);
+        self.values_mut()[i] = v;
     }
 
     /// Returns the 8 corner indices `[x, y, z]` of the voxel at `(x, y, z)`.
@@ -195,17 +194,16 @@ impl Chunk {
     /// Coordinates passed to `function` are scaled by [`scale`](Chunk::scale).
     pub fn fill(&mut self, function: &CompiledFunction) {
         let (size_x, size_y, size_z) = (self.size_x, self.size_y, self.size_z);
+        let (stride_y, stride_z) = (self.stride_y, self.stride_z);
         let scale = self.scale;
         let values = self.values_mut();
-        (0..=size_x).for_each(|x| {
-            (0..=size_y).for_each(|y| {
-                (0..=size_z).for_each(|z| {
-                    let xf = x as Value * scale;
-                    let yf = y as Value * scale;
-                    let zf = z as Value * scale;
-                    values[z][y][x] = function(xf, yf, zf);
-                })
-            })
-        });
+        for z in 0..=size_z {
+            for y in 0..=size_y {
+                for x in 0..=size_x {
+                    let i = z * stride_z + y * stride_y + x;
+                    values[i] = function(x as Value * scale, y as Value * scale, z as Value * scale);
+                }
+            }
+        }
     }
 }

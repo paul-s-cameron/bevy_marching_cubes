@@ -163,10 +163,14 @@ fn spawn_mesh_tasks(
         let size_z = chunk.size_z;
         let scale = chunk.scale;
         let threshold = chunk.threshold;
-        let values: Arc<Vec<Vec<Vec<Value>>>> = Arc::clone(&chunk.values);
+        let stride_y = chunk.stride_y;
+        let stride_z = chunk.stride_z;
+        let values: Arc<Vec<Value>> = Arc::clone(&chunk.values);
 
         let task = task_pool.spawn(async move {
-            run_marching_cubes(size_x, size_y, size_z, scale, threshold, &values)
+            run_marching_cubes(
+                size_x, size_y, size_z, scale, threshold, stride_y, stride_z, &values,
+            )
         });
 
         commands.entity(entity).insert(ComputeTask(task));
@@ -220,7 +224,7 @@ fn upload_mesh(
 /// ```text
 /// Per voxel:
 /// 1. get_corner_positions       →  8 world-space points
-/// 2. values[z][y][x] (×8)      →  8 scalar values
+/// 2. values[idx(x,y,z)] (×8)   →  8 scalar values (flat array, cache-friendly)
 /// 3. get_state                  →  256-entry lookup key
 /// 4. EDGE_TABLE[state]          →  bitmask of intersected edges
 /// 5. get_edge_midpoints         →  up to 12 interpolated points
@@ -232,7 +236,9 @@ fn run_marching_cubes(
     size_z: usize,
     scale: Value,
     threshold: Value,
-    values: &Vec<Vec<Vec<Value>>>,
+    stride_y: usize,
+    stride_z: usize,
+    values: &[Value],
 ) -> GeneratedMesh {
     let per_x: Vec<Vec<[f32; 3]>> = (0..size_x)
         .into_par_iter()
@@ -246,10 +252,8 @@ fn run_marching_cubes(
                     let corner_positions = get_corner_positions(x, y, z, scale);
 
                     let corner_indices = voxel_corner_indices(x, y, z);
-                    let eval_corners: Vec<Value> = corner_indices
-                        .iter()
-                        .map(|[cx, cy, cz]| values[*cz][*cy][*cx])
-                        .collect();
+                    let eval_corners: [Value; 8] = corner_indices
+                        .map(|[cx, cy, cz]| values[cz * stride_z + cy * stride_y + cx]);
 
                     let state = get_state(&eval_corners, threshold).expect("Could not get state");
 

@@ -9,6 +9,7 @@ description = "A small Bevy plugin that generates meshes from signed-distance-fi
 default = ["auto_queue"]
 auto_queue = []
 interpolate_midpoints = []
+simd = []
 
 [dependencies]
 bevy = { version = "0.18", default-features = false, features = [

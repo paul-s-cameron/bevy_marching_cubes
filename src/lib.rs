@@ -1,3 +1,5 @@
+#![cfg_attr(feature = "simd", feature(portable_simd))]
+
 pub mod chunk;
 pub mod error;
 pub mod interp;

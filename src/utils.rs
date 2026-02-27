@@ -1,5 +1,7 @@
 #[cfg(feature = "interpolate_midpoints")]
-use crate::interp::{find_t, interpolate_points};
+use crate::interp::find_t;
+#[cfg(all(feature = "interpolate_midpoints", not(feature = "simd")))]
+use crate::interp::interpolate_points;
 use crate::{
     error::{MarchingCubesError, Result},
     tables::TRI_TABLE,
@@ -12,7 +14,7 @@ use crate::{
 /// `TRI_TABLE[state]` contains edge indices in groups of three, terminated by `-1`:
 /// ```text
 /// TRI_TABLE[state] = [e0, e1, e2,  e3, e4, e5,  -1, ...]
-///                     \___tri0__/   \___tri1__/
+///                     \___tri0__/  \___tri1__/
 /// ```
 /// Each edge index maps into `edge_points` to retrieve the interpolated midpoint.
 #[inline]
@@ -90,7 +92,7 @@ pub fn center_box(center: [f32; 3], dims: [f32; 3]) -> [[f32; 3]; 2] {
 ///
 /// Returns [`MarchingCubesError::InvalidCorners`] if `eval_corners` does not contain exactly 8 values.
 #[inline]
-pub fn get_state(eval_corners: &Vec<Value>, threshold: Value) -> Result<usize> {
+pub fn get_state(eval_corners: &[Value], threshold: Value) -> Result<usize> {
     if eval_corners.len() != 8 {
         return Err(MarchingCubesError::InvalidCorners);
     }
@@ -121,6 +123,29 @@ pub fn get_edge_midpoints(
 ) -> [Option<[f32; 3]>; 12] {
     let mut edge_points: [Option<[f32; 3]>; 12] = [None; 12];
 
+    #[cfg(all(feature = "simd", feature = "interpolate_midpoints"))]
+    {
+        use std::simd::f32x4;
+        for i in 0..12_usize {
+            if (edges_mask & (1 << i)) == 0 {
+                continue;
+            }
+            let pair = point_indices[i];
+            let pi = corner_positions[pair[0] as usize];
+            let pf = corner_positions[pair[1] as usize];
+            let vi = corner_values[pair[0] as usize];
+            let vf = corner_values[pair[1] as usize];
+            let t = find_t(vi, vf, threshold);
+            let p0 = f32x4::from_array([pi[0], pi[1], pi[2], 0.0]);
+            let p1 = f32x4::from_array([pf[0], pf[1], pf[2], 0.0]);
+            let tv = f32x4::splat(t);
+            let r = p0 + (p1 - p0) * tv;
+            let a = r.to_array();
+            edge_points[i] = Some([a[0], a[1], a[2]]);
+        }
+    }
+
+    #[cfg(not(all(feature = "simd", feature = "interpolate_midpoints")))]
     for i in 0..12_usize {
         if (edges_mask & (1 << i)) == 0 {
             continue;
